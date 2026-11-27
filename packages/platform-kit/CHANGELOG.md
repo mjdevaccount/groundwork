@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `docs/plugins.md`, `docs/rate-budget.md`, `docs/config.md`: the design records of three planes
+  (reasons, invariants, ruled-out options). The purity scan now reads `docs/` too.
+
 ## [0.1.1]
 
 ### Security
