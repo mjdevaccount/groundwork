@@ -8,23 +8,35 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 primitives-kit = { workspace = true }
+platform-kit = { workspace = true }
 
 [dependency-groups]
 dev = [
     "primitives-kit",
+    "platform-kit[config,plugins,service,sql]",
+    "aiosqlite>=0.21",
+    "asyncpg>=0.30",
+    "httpx2",
     "pytest>=9.2",
     "pytest-cov>=7.0",
+    "testcontainers[postgres]>=4.10",
 ]
 lint = [
     "ruff>=0.14",
     "import-linter>=2.5",
     "primitives-kit",
+    "platform-kit[config,plugins,service,sql]",
     "twine>=7.0",
     "actionlint-py==1.7.12.25",
     "zizmor==1.33.1",
 ]
 types = [
     "primitives-kit",
+    "platform-kit[config,plugins,service,sql]",
+    "aiosqlite>=0.21",
+    "asyncpg>=0.30",
+    "httpx2",
+    "testcontainers[postgres]>=4.10",
     "mypy>=2.4",
     "pyright[nodejs]>=1.1.414",
     "pytest>=9.2",
@@ -38,7 +50,7 @@ filterwarnings = ["error"]
 
 [tool.coverage.run]
 branch = true
-source = ["primitives_kit"]
+source = ["primitives_kit", "platform_kit"]
 
 [tool.coverage.report]
 # Raised only, never lowered.
@@ -55,20 +67,43 @@ target-version = "py312"
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PT", "DTZ", "PL", "C4", "PIE", "RET", "TC"]
 ignore = ["PLR2004", "PT018"]
 
+[tool.ruff.lint.per-file-ignores]
+# platform-kit: public signatures whose keyword arguments are the API (argument count), and imports
+# deferred on purpose so each extra stays optional (import-outside-top-level).
+"packages/platform-kit/**" = ["PLR0913", "PLC0415"]
+# FastAPI and pydantic read these annotations at runtime, so the imports cannot move under
+# TYPE_CHECKING.
+"packages/platform-kit/src/platform_kit/{config,service}/*" = ["TC001", "TC002", "TC003"]
+
 [tool.ruff.lint.isort]
-known-first-party = ["primitives_kit"]
+known-first-party = ["primitives_kit", "platform_kit"]
 
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["packages/primitives-kit/src", "packages/primitives-kit/tests"]
+files = [
+    "packages/primitives-kit/src",
+    "packages/primitives-kit/tests",
+    "packages/platform-kit/src",
+    "packages/platform-kit/tests",
+]
 plugins = ["pydantic.mypy"]
+
+# platform-kit's suite came over from its first home with untyped test signatures. The bodies are
+# still checked (`check_untyped_defs`); only the signature rules are off, for that suite alone.
+# Ratchet: annotate a test file and it is strict again; this override shrinks, never grows.
+[[tool.mypy.overrides]]
+module = ["tests", "tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = true
 
 # The layers between the workspace packages (bottom-up). primitives-kit is the floor: it imports no
 # other first-party package, so any library can depend on it without a cycle. A package added
 # here joins the contract in the same change that adds it.
 [tool.importlinter]
-root_packages = ["primitives_kit"]
+root_packages = ["primitives_kit", "platform_kit"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -77,3 +112,10 @@ name = "primitives_kit imports no other first-party library"
 type = "forbidden"
 source_modules = ["primitives_kit"]
 forbidden_modules = ["platform_kit", "llm_ports", "content_data", "market_ports"]
+
+[[tool.importlinter.contracts]]
+id = "platform"
+name = "platform_kit imports no first-party library but the floor"
+type = "forbidden"
+source_modules = ["platform_kit"]
+forbidden_modules = ["llm_ports", "content_data", "market_ports"]

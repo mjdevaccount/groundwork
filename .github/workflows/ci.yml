@@ -3,7 +3,8 @@
 #   lint         ruff check + ruff format --check, import-linter (the layers between packages),
 #                actionlint + zizmor over the workflows
 #   types        mypy --strict; pyright --verifytypes: every public name of every package typed
-#   pytest       the locked suite on 3.12 / 3.13 / 3.14, with a coverage floor (raised only)
+#   pytest       the locked suite on 3.12 / 3.13 / 3.14, with a coverage floor (raised only), the
+#                SQL stores against a real Postgres service (a missing database FAILS, never skips)
 #   test-lowest  each package at its declared dependency lower bounds (`--resolution lowest-direct`)
 #   build        an sdist + wheel per package, `twine check --strict`
 #   test         the one required check: green only when every job above is
@@ -67,8 +68,10 @@ jobs:
       - run: uv sync --frozen --group types
       - name: mypy --strict
         run: uv run --no-sync mypy
-      - name: pyright --verifytypes
+      - name: pyright --verifytypes primitives_kit
         run: uv run --no-sync pyright --verifytypes primitives_kit --ignoreexternal
+      - name: pyright --verifytypes platform_kit
+        run: uv run --no-sync pyright --verifytypes platform_kit --ignoreexternal
 
   pytest:
     name: pytest (${{ matrix.python }})
@@ -80,6 +83,16 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.12", "3.13", "3.14"]
+    # platform-kit's SQL stores and its rate budget run against a REAL Postgres: a faked store proves
+    # the caller, never the statement. REQUIRED=1 turns the local "no database -> skip" into a FAIL.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -89,6 +102,9 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --frozen
       - name: pytest
+        env:
+          PLATFORM_KIT_TEST_PG: postgresql://postgres:test@localhost:5432/postgres
+          PLATFORM_KIT_TEST_PG_REQUIRED: "1"
         run: uv run --no-sync pytest -q --cov --cov-report=term
 
   # A plain (non-editable) install of each package at its lowest declared bounds, so the test
@@ -102,7 +118,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [primitives-kit]
+        include:
+          - package: primitives-kit
+          # Every extra at its floor, with primitives-kit (its first-party dependency) at ITS floor.
+          # The suite's test-only clients install AFTER, at normal resolution (a driver's oldest
+          # release is not a bound this package declares). The Postgres tests skip in this leg (no
+          # database): the locked pytest job runs them. The lowest starlette predates anyio's
+          # BlockingPortal move, a deprecation in a TEST import (TestClient) this package never makes.
+          - package: platform-kit
+            extras: "[config,plugins,service,sql]"
+            with: ./packages/primitives-kit
+            test_deps: aiosqlite asyncpg httpx
+            ignore_warning: "The anyio.abc.BlockingPortal alias is deprecated"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -111,14 +138,31 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv venv
-      - run: uv pip install --resolution lowest-direct "./packages/${MATRIX_PACKAGE}" "pytest>=9.2"
+      - name: install at the lowest bounds
         env:
           MATRIX_PACKAGE: ${{ matrix.package }}
+          MATRIX_EXTRAS: ${{ matrix.extras }}
+          MATRIX_WITH: ${{ matrix.with }}
+        run: |
+          reqs=("./packages/${MATRIX_PACKAGE}${MATRIX_EXTRAS}" "pytest>=9.2")
+          if [ -n "${MATRIX_WITH}" ]; then reqs=("${MATRIX_WITH}" "${reqs[@]}"); fi
+          uv pip install --resolution lowest-direct "${reqs[@]}"
+      - name: install the test-only clients
+        if: matrix.test_deps
+        env:
+          MATRIX_TEST_DEPS: ${{ matrix.test_deps }}
+        run: |
+          read -ra deps <<< "${MATRIX_TEST_DEPS}"
+          uv pip install "${deps[@]}"
       - run: uv pip list
       - name: pytest
         env:
           MATRIX_PACKAGE: ${{ matrix.package }}
-        run: .venv/bin/python -m pytest -q -p no:cacheprovider "packages/${MATRIX_PACKAGE}/tests"
+          MATRIX_IGNORE_WARNING: ${{ matrix.ignore_warning }}
+        run: |
+          args=()
+          if [ -n "${MATRIX_IGNORE_WARNING}" ]; then args=(-W "ignore:${MATRIX_IGNORE_WARNING}:DeprecationWarning"); fi
+          .venv/bin/python -m pytest -q -p no:cacheprovider "${args[@]}" "packages/${MATRIX_PACKAGE}/tests"
 
   build:
     name: build

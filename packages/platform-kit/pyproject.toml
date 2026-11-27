@@ -1,0 +1,56 @@
+[project]
+name = "platform-kit"
+version = "0.1.0"
+description = "The general service platform: typed config knobs, a duplicate-guarded registry, a strict plugin loader, the push-notification pipeline, the watchdog plane, a shared Postgres rate window and a FastAPI service chassis."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+keywords = ["config", "registry", "plugins", "notifications", "watchdog", "rate-limit", "fastapi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Framework :: Pydantic :: 2",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+# The core (registry, stamp, sqlkit, the notify pipeline, the watchdog plane) is the standard
+# library alone; each heavier piece sits behind an extra, so importing the core never pulls them
+# (tests/test_purity.py holds each module to the extras its group declares). tzdata only where the
+# OS has no zone database: a budget window counted in a named zone needs one.
+dependencies = ["tzdata>=2025.2 ; sys_platform == 'win32'"]
+
+[project.optional-dependencies]
+# platform_kit.budget, platform_kit.notify.ledger, platform_kit.watch.state: the async-SQL stores.
+# Table names are the consumer's. The budget's errors are primitives-kit's shared tree.
+sql = ["sqlalchemy[asyncio]>=2.0.36", "primitives-kit>=0.1.0"]
+# platform_kit.config: typed knobs with a class, a source and a fingerprint.
+config = ["pydantic>=2.9", "pydantic-settings>=2.12"]
+# platform_kit.service: the FastAPI composition root (db core, lifespan, settings base, envelope,
+# error handlers, the API-key guard, health routes, the /admin/run/* timeline middleware).
+service = [
+    "fastapi>=0.115",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.12",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "structlog>=24.4",
+]
+# platform_kit.plugins and platform_kit.testing.plugin_conformance (the suite also needs pytest).
+plugins = ["pluggy>=1.7"]
+
+[project.urls]
+Repository = "https://github.com/mjdevaccount/groundwork"
+Changelog = "https://github.com/mjdevaccount/groundwork/blob/base/packages/platform-kit/CHANGELOG.md"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/platform_kit"]
