@@ -17,6 +17,7 @@ dev = [
     "aiosqlite>=0.21",
     "asyncpg>=0.30",
     "httpx2",
+    "packaging>=24",
     "pytest>=9.2",
     "pytest-cov>=7.0",
     "testcontainers[postgres]>=4.10",
@@ -38,13 +39,14 @@ types = [
     "httpx2",
     "testcontainers[postgres]>=4.10",
     "mypy>=2.4",
+    "packaging>=24",
     "pyright[nodejs]>=1.1.414",
     "pytest>=9.2",
 ]
 
 [tool.pytest.ini_options]
 addopts = ["--strict-markers", "--strict-config", "-ra", "--import-mode=importlib"]
-testpaths = ["packages"]
+testpaths = ["packages", "tests"]
 xfail_strict = true
 filterwarnings = ["error"]
 
@@ -86,6 +88,7 @@ files = [
     "packages/primitives-kit/tests",
     "packages/platform-kit/src",
     "packages/platform-kit/tests",
+    "tests",
 ]
 plugins = ["pydantic.mypy"]
 

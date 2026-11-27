@@ -17,6 +17,7 @@ dev = [
     { name = "aiosqlite", specifier = ">=0.21" },
     { name = "asyncpg", specifier = ">=0.30" },
     { name = "httpx2" },
+    { name = "packaging", specifier = ">=24" },
     { name = "platform-kit", extras = ["config", "plugins", "service", "sql"], editable = "packages/platform-kit" },
     { name = "primitives-kit", editable = "packages/primitives-kit" },
     { name = "pytest", specifier = ">=9.2" },
@@ -37,6 +38,7 @@ types = [
     { name = "asyncpg", specifier = ">=0.30" },
     { name = "httpx2" },
     { name = "mypy", specifier = ">=2.4" },
+    { name = "packaging", specifier = ">=24" },
     { name = "platform-kit", extras = ["config", "plugins", "service", "sql"], editable = "packages/platform-kit" },
     { name = "primitives-kit", editable = "packages/primitives-kit" },
     { name = "pyright", extras = ["nodejs"], specifier = ">=1.1.414" },
@@ -1231,7 +1233,7 @@ wheels = [
 
 [[package]]
 name = "platform-kit"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/platform-kit" }
 dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },

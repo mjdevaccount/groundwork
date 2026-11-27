@@ -59,13 +59,16 @@ workspace repository:
 dependencies = ["platform-kit[service,sql]"]
 
 [tool.uv.sources]
-platform-kit = { git = "https://github.com/mjdevaccount/groundwork", tag = "platform-kit-v0.1.0", subdirectory = "packages/platform-kit" }
-primitives-kit = { git = "https://github.com/mjdevaccount/groundwork", tag = "primitives-kit-v0.1.0", subdirectory = "packages/primitives-kit" }
+platform-kit = { git = "https://github.com/mjdevaccount/groundwork", rev = "platform-kit-v0.1.1", subdirectory = "packages/platform-kit" }
 ```
 
 ```text
 # pip / PEP 508
-platform-kit[service,sql] @ git+https://github.com/mjdevaccount/groundwork@platform-kit-v0.1.0#subdirectory=packages/platform-kit
+platform-kit[service,sql] @ git+https://github.com/mjdevaccount/groundwork@platform-kit-v0.1.1#subdirectory=packages/platform-kit
 ```
 
-The `sql` extra needs `primitives-kit`, which is not on an index either: pin it the same way.
+The `sql` extra brings `primitives-kit` with it: from 0.1.1 the wheel names it by a direct
+reference to its release tag, so pip never asks an index for it (0.1.0 named it bare; do not pin
+0.1.0). uv resolves it from this workspace at the same commit as platform-kit. A project that
+ALSO pins primitives-kit at its own tag (directly or through another library) names one URL for
+it twice; the trees are identical, so settle it with `[tool.uv] override-dependencies`.
