@@ -29,6 +29,10 @@ to its declared imports.
 The modules without an extra import the standard library only, so `import platform_kit.notify`
 loads no third-party module.
 
+The reasons behind three planes, and what was ruled out for each, are in `docs/`:
+[`plugins.md`](docs/plugins.md) (the R1-R10 loader contract), [`rate-budget.md`](docs/rate-budget.md)
+and [`config.md`](docs/config.md) (the knob taxonomy).
+
 Every plane that can fail says so somewhere a caller can watch: `Delivery.recorded` and an
 `on_degraded` hook for notify, `BudgetStats` for the budget, an exit code of 2 ("did not finish
 looking") for the watch runner and the config CLI, never 0.

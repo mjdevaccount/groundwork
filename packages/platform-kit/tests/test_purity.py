@@ -300,7 +300,7 @@ def _scanned() -> list[pathlib.Path]:
     and the project metadata."""
     files = [
         p
-        for top in ("src", "tests")
+        for top in ("src", "tests", "docs")
         for p in sorted((PKG_DIR / top).rglob("*"))
         if p.is_file() and p.suffix not in _SKIP_SUFFIXES and not (_SKIP_DIRS & set(p.parts))
     ]
