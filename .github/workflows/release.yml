@@ -1,0 +1,83 @@
+# Releasing ONE package. One trigger, one pipeline:
+#
+#   push of a `<package>-vX.Y.Z` tag   ci (the whole gate, reused) -> build that package
+#                                      -> GitHub release with its sdist + wheel
+#
+# A consumer pins a package by its tag and subdirectory (uv):
+#   primitives-kit = { git = "https://github.com/mjdevaccount/groundwork",
+#                      tag = "primitives-kit-v0.1.0", subdirectory = "packages/primitives-kit" }
+# A tag whose package directory does not exist, or whose version is not that package's pyproject
+# version, publishes nothing. A fix to one package bumps only that package's tag, so only its
+# pinners move. There is no package-index upload while the repository is private.
+name: release
+
+on:
+  push:
+    tags: ["*-v[0-9]*"]
+
+permissions: {}
+
+jobs:
+  ci:
+    name: ci
+    permissions:
+      contents: read
+      pull-requests: read # ci-kit gitleaks
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  build:
+    name: build
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: false # a release builds from a clean resolve, never a shared cache
+      - name: tag names a package at its version
+        id: tag
+        run: |
+          tag="$GITHUB_REF_NAME"
+          pkg="${tag%-v*}"
+          want="${tag##*-v}"
+          [ -f "packages/$pkg/pyproject.toml" ] || { echo "::error::tag $tag: no packages/$pkg"; exit 1; }
+          have=$(uv version --short --package "$pkg")
+          [ "$have" = "$want" ] || { echo "::error::tag $tag != packages/$pkg version $have"; exit 1; }
+          echo "package=$pkg" >> "$GITHUB_OUTPUT"
+      - run: uv build --package "$PACKAGE" --no-sources
+        env:
+          PACKAGE: ${{ steps.tag.outputs.package }}
+      - name: twine check
+        run: uv run --frozen --only-group lint twine check --strict dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  github-release:
+    name: GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the release and upload its assets
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=()
+          case "$GITHUB_REF_NAME" in *a[0-9]* | *b[0-9]* | *rc[0-9]*) pre=(--prerelease --latest=false) ;; esac
+          # no --clobber fallback: a published wheel's bytes are what consumers locked a hash of
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$GITHUB_REF_NAME" --generate-notes "${pre[@]}"

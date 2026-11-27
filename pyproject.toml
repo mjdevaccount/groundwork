@@ -1,0 +1,79 @@
+# The workspace root. It is not a package: each library is a member under packages/, with its own
+# version, changelog and release tag (`<package>-vX.Y.Z`). One lockfile and one toolchain for all.
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+primitives-kit = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "primitives-kit",
+    "pytest>=9.2",
+    "pytest-cov>=7.0",
+]
+lint = [
+    "ruff>=0.14",
+    "import-linter>=2.5",
+    "primitives-kit",
+    "twine>=7.0",
+    "actionlint-py==1.7.12.25",
+    "zizmor==1.33.1",
+]
+types = [
+    "primitives-kit",
+    "mypy>=2.4",
+    "pyright[nodejs]>=1.1.414",
+    "pytest>=9.2",
+]
+
+[tool.pytest.ini_options]
+addopts = ["--strict-markers", "--strict-config", "-ra", "--import-mode=importlib"]
+testpaths = ["packages"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["primitives_kit"]
+
+[tool.coverage.report]
+# Raised only, never lowered.
+fail_under = 100
+show_missing = true
+skip_covered = true
+exclude_also = ["\\.\\.\\.$", "if TYPE_CHECKING:"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PT", "DTZ", "PL", "C4", "PIE", "RET", "TC"]
+ignore = ["PLR2004", "PT018"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["primitives_kit"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["packages/primitives-kit/src", "packages/primitives-kit/tests"]
+plugins = ["pydantic.mypy"]
+
+# The layers between the workspace packages (bottom-up). primitives-kit is the floor: it imports no
+# other first-party package, so any library can depend on it without a cycle. A package added
+# here joins the contract in the same change that adds it.
+[tool.importlinter]
+root_packages = ["primitives_kit"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "floor"
+name = "primitives_kit imports no other first-party library"
+type = "forbidden"
+source_modules = ["primitives_kit"]
+forbidden_modules = ["platform_kit", "llm_ports", "content_data", "market_ports"]

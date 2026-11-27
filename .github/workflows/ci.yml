@@ -1,0 +1,171 @@
+# The workspace gate. Every job starts from `permissions: {}` and grants only what it needs.
+#
+#   lint         ruff check + ruff format --check, import-linter (the layers between packages),
+#                actionlint + zizmor over the workflows
+#   types        mypy --strict; pyright --verifytypes: every public name of every package typed
+#   pytest       the locked suite on 3.12 / 3.13 / 3.14, with a coverage floor (raised only)
+#   test-lowest  each package at its declared dependency lower bounds (`--resolution lowest-direct`)
+#   build        an sdist + wheel per package, `twine check --strict`
+#   test         the one required check: green only when every job above is
+#   gitleaks / dup-code / doc-refs   ci-kit's reusable workflows
+#
+# RUNNERS. Linux jobs run on the self-hosted pool when the repo variable CI_RUNNER is set (a JSON
+# label list), else ubuntu-latest; unset is the kill switch. No job here holds a secret or a
+# write token. release.yml calls this whole workflow before it builds anything to publish.
+name: ci
+
+on:
+  push:
+    branches: [base]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: lint
+    runs-on: &runner ${{ vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - run: uv sync --frozen --group lint
+      - name: ruff check
+        run: uv run --no-sync ruff check --output-format=github .
+      - name: ruff format
+        run: uv run --no-sync ruff format --check .
+      - name: import-linter
+        run: uv run --no-sync lint-imports
+      - name: actionlint
+        run: uv run --no-sync actionlint
+      - name: zizmor
+        env:
+          GH_TOKEN: ${{ github.token }} # online audits (impostor commits, known-vulnerable actions)
+        run: uv run --no-sync zizmor --format=github .
+
+  types:
+    name: types
+    runs-on: *runner
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - run: uv sync --frozen --group types
+      - name: mypy --strict
+        run: uv run --no-sync mypy
+      - name: pyright --verifytypes
+        run: uv run --no-sync pyright --verifytypes primitives_kit --ignoreexternal
+
+  pytest:
+    name: pytest (${{ matrix.python }})
+    runs-on: *runner
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --frozen
+      - name: pytest
+        run: uv run --no-sync pytest -q --cov --cov-report=term
+
+  # A plain (non-editable) install of each package at its lowest declared bounds, so the test
+  # imports the built package, not the checkout, and a lower bound nobody ever ran is caught.
+  test-lowest:
+    name: test-lowest (${{ matrix.package }}, 3.12)
+    runs-on: *runner
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [primitives-kit]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          python-version: "3.12"
+      - run: uv venv
+      - run: uv pip install --resolution lowest-direct "./packages/${MATRIX_PACKAGE}" "pytest>=9.2"
+        env:
+          MATRIX_PACKAGE: ${{ matrix.package }}
+      - run: uv pip list
+      - name: pytest
+        env:
+          MATRIX_PACKAGE: ${{ matrix.package }}
+        run: .venv/bin/python -m pytest -q -p no:cacheprovider "packages/${MATRIX_PACKAGE}/tests"
+
+  build:
+    name: build
+    runs-on: *runner
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - run: uv build --all-packages --no-sources
+      - name: twine check
+        run: uv run --frozen --only-group lint twine check --strict dist/*
+
+  # The required status check is named `test`; it aggregates every job above so a new leg is
+  # covered without editing branch protection.
+  test:
+    name: test
+    if: always()
+    needs: [lint, types, pytest, test-lowest, build]
+    runs-on: *runner
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}
+
+  gitleaks:
+    name: gitleaks (secret scan)
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: mjdevaccount/ci-kit/.github/workflows/gitleaks.yml@v1
+    with:
+      mode: history
+
+  # The same code written twice fails the PR (jscpd behind a shrink-only baseline).
+  dup-code:
+    permissions:
+      contents: read
+    uses: mjdevaccount/ci-kit/.github/workflows/dup-code.yml@v1
+
+  # A doc reference is reported only when the path existed and is now gone (full history).
+  doc-refs:
+    permissions:
+      contents: read
+    uses: mjdevaccount/ci-kit/.github/workflows/doc-refs.yml@v1
