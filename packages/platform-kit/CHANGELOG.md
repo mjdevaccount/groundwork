@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Security
+
+- `[sql]` names primitives-kit by a direct reference to its release tag
+  (`primitives-kit @ git+https://github.com/mjdevaccount/groundwork@primitives-kit-v0.1.0#subdirectory=packages/primitives-kit`),
+  not by bare name. Neither name is on PyPI, so a pip install (or `uv --no-sources`) of 0.1.0's
+  `[sql]` asked the index for `primitives-kit`, and whoever registered that name would have got code
+  into the install. Inside the workspace the root `[tool.uv.sources]` still resolves it to the
+  member on disk. The workspace test `tests/test_internal_deps.py` fails CI on a bare internal name.
+
 ## [0.1.0]
 
 ### Added
