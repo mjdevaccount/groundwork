@@ -178,6 +178,17 @@ jobs:
       - run: uv build --all-packages --no-sources
       - name: twine check
         run: uv run --frozen --only-group lint twine check --strict dist/*
+      - name: each wheel resolves as published (its internal direct refs name tags that exist)
+        # A wheel names another workspace package by a direct reference to that package's release
+        # tag (tests/test_internal_deps.py holds the shape and the version bound). Every other leg
+        # resolves the member on disk, so only this one reads the wheel's metadata alone, every
+        # extra, the way a pip consumer does: a ref to a tag that is not pushed fails here.
+        run: |
+          uv venv -q "$RUNNER_TEMP/published"
+          for whl in dist/*.whl; do
+            extras=$(uv run --no-project python -c 'import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); m = next(n for n in z.namelist() if n.endswith(".dist-info/METADATA")); print(",".join(l.split(": ", 1)[1] for l in z.read(m).decode().splitlines() if l.startswith("Provides-Extra: ")))' "$whl")
+            VIRTUAL_ENV="$RUNNER_TEMP/published" uv pip install --dry-run "${whl}${extras:+[$extras]}"
+          done
 
   # The required status check is named `test`; it aggregates every job above so a new leg is
   # covered without editing branch protection.
