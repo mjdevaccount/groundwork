@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from platform_kit.budget import BudgetUnavailable, PgWindowBudget, Window
+import primitives_kit
+from platform_kit.budget import BudgetExhausted, BudgetUnavailable, PgWindowBudget, Window
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -134,3 +135,18 @@ def test_a_reading_that_arrives_during_a_flush_is_kept_for_the_next() -> None:
     assert asyncio.run(b.flush_observed()) is True
     assert asyncio.run(b.flush_observed(force=True)) is True  # the reading observed mid-flush landed now
     assert s.flushes == 2
+
+
+def test_the_errors_are_primitives_kits_budget_tree() -> None:
+    """A caller that catches the shared tree catches this budget's refusals, both kinds, untranslated."""
+    assert issubclass(BudgetExhausted, primitives_kit.BudgetExhausted)
+    assert issubclass(BudgetUnavailable, primitives_kit.BudgetUnavailable)
+    assert not issubclass(BudgetExhausted, primitives_kit.BudgetUnavailable)
+    exhausted = _budget(_Session([[(False, 60.0, None, None)]]), max_wait=0.5)
+    with pytest.raises(primitives_kit.BudgetError) as ei:
+        asyncio.run(exhausted.acquire())
+    assert isinstance(ei.value, primitives_kit.BudgetExhausted) and isinstance(ei.value, RuntimeError)
+    raced = _budget(_Session([[]]))
+    with pytest.raises(primitives_kit.BudgetError) as eu:
+        asyncio.run(raced.acquire())
+    assert isinstance(eu.value, primitives_kit.BudgetUnavailable)

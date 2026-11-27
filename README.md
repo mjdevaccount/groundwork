@@ -37,8 +37,9 @@ uv run pyright --verifytypes platform_kit --ignoreexternal
 
 platform-kit's SQL stores and rate budget run against a real Postgres: set
 `PLATFORM_KIT_TEST_PG=postgresql://user:pw@host:port/db`, or leave it unset and a throwaway
-`postgres:18` testcontainer is started (Docker needed; without Docker those tests skip locally, and
-CI sets `PLATFORM_KIT_TEST_PG_REQUIRED=1` so they can never skip there).
+`postgres:18` testcontainer is started (Docker needed; without Docker those tests skip locally).
+CI's `pytest` job runs them against a Postgres service with `PLATFORM_KIT_TEST_PG_REQUIRED=1`, so
+they cannot skip there; the `test-lowest` leg has no database and does skip them.
 
 Releasing a package: bump its `version`, move `Unreleased` in its `CHANGELOG.md`, merge, then push
 the tag `<package>-vX.Y.Z`. `release.yml` re-runs the gate, checks the tag against the package's

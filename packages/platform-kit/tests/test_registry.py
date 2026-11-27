@@ -60,8 +60,8 @@ def test_iteration_is_insertion_order_and_the_mapping_surface_works() -> None:
 
 def test_a_raw_item_write_is_guarded_too() -> None:
     """`reg[k] = spec`, `update` and `setdefault` all pass through the guard: a production writer
-    cannot silently replace a spec by skipping add() (#2454 review note 1). `|=` is not on the
-    ABC at all (TypeError, #2456 review note 1). Teardown's two shapes -- plant a NEW id, refill an
+    cannot silently replace a spec by skipping add(). `|=` is not on the
+    ABC at all (TypeError). Teardown's two shapes -- plant a NEW id, refill an
     emptied table -- still pass; pop-then-set is the documented raw hole."""
     reg: Registry[_Spec] = Registry("thing")
     reg["a"] = _Spec("a")  # new id: fine

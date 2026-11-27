@@ -91,7 +91,9 @@ plugins = ["pydantic.mypy"]
 
 # platform-kit's suite came over from its first home with untyped test signatures. The bodies are
 # still checked (`check_untyped_defs`); only the signature rules are off, for that suite alone.
-# Ratchet: annotate a test file and it is strict again; this override shrinks, never grows.
+# Ratchet: annotate a test file and it is strict again; this override shrinks, never grows. It
+# matches by MODULE name: only platform-kit's suite is a `tests` package (primitives-kit's has no
+# `__init__.py`), so a package that adds `tests/__init__.py` must not reuse that name.
 [[tool.mypy.overrides]]
 module = ["tests", "tests.*"]
 disallow_untyped_defs = false

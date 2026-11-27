@@ -15,10 +15,12 @@ Operating rules for this workspace. The tour is `README.md`; history is each pac
   (`tests/test_purity.py` reads the source and the installed metadata). It holds contracts only:
   protocols, error trees, value types. A contract enters only when two libraries that cannot import
   each other each carried a copy and the copies had drifted; the change that adds it names both.
-- **platform-kit's core is stdlib**: `registry`, `stamp`, `sqlkit`, `notify`, `watch` import the
-  standard library only; every other module imports only its extra's declared dependencies
+- **platform-kit's core is stdlib**: `registry`, `stamp`, `sqlkit`, `notify` and `watch` (except
+  `notify.ledger` and `watch.state`, which are `[sql]`) import the standard library only; every
+  other module imports only its extra's declared dependencies, and no core module imports an
+  extra's module
   (`packages/platform-kit/tests/test_purity.py`, which also reads the installed metadata and keeps
-  the consumer deny-list as sha256 digests). A new module joins `EXTRA_IMPORTS` there.
+  the consumer deny-list as sha256 digests). A new extra module joins `MODULE_EXTRA` there.
 - **No consumer knowledge** in any package: no application names, hostnames, addresses, schema
   names, symbol lists or a consumer's environment-variable names. Docstrings state the contract.
 - **Unknown is `None`, never `0`.** Datetimes carry a timezone. Value types are frozen.
