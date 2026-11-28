@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mjdevaccount/groundwork/blob/base/packages/pack-contracts/src/pack_contracts/pack-manifest.schema.json",
+  "$defs": {
+    "Tier": {
+      "description": "The conformance tier a pack CLAIMS. Cumulative: each tier includes the ones before it. The\nclaim is checked by whoever owns that tier's check; a host may require a minimum.\n\n- `declared`: the manifest validates (this package's reader).\n- `loads`: the pack loads through the host's strict loader and registers exactly the keys its\n  manifest `provides` (the loader's check).\n- `conformant`: the pack passes the contract conformance kit.",
+      "enum": [
+        "declared",
+        "loads",
+        "conformant"
+      ],
+      "title": "Tier",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One pack's declaration. Unknown keys are refused (`extra=\"forbid\"`).",
+  "properties": {
+    "id": {
+      "description": "The pack's id: a slug, equal to its entry-point name in both groups.",
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "version": {
+      "description": "The pack's version. The reader holds it equal to the installed distribution's.",
+      "maxLength": 64,
+      "pattern": "^[0-9]+(?:\\.[0-9]+)*[0-9A-Za-z.+!-]*$",
+      "title": "Version",
+      "type": "string"
+    },
+    "contract": {
+      "description": "The contract MAJOR.MINOR the pack is written against. The host must speak the same MAJOR and at least this MINOR.",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+      "title": "Contract",
+      "type": "string"
+    },
+    "tier": {
+      "$ref": "#/$defs/Tier",
+      "description": "The conformance tier the pack claims (cumulative)."
+    },
+    "provides": {
+      "additionalProperties": false,
+      "description": "Every key the pack registers, as kind -> names. A key registered and not declared, or declared and not registered, is a load failure.",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "propertyNames": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$"
+      },
+      "title": "Provides",
+      "type": "object"
+    },
+    "needs": {
+      "additionalProperties": false,
+      "description": "Keys the host or another pack must provide, as kind -> names. A need nobody provides is a load failure.",
+      "patternProperties": {
+        "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "propertyNames": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$"
+      },
+      "title": "Needs",
+      "type": "object"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "maxLength": 90,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "A display name. None = show the id.",
+      "title": "Title"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "One paragraph on what the pack is for.",
+      "title": "Description"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "contract",
+    "tier",
+    "provides"
+  ],
+  "title": "PackManifest",
+  "type": "object"
+}

@@ -1,0 +1,13 @@
+# The manifest of the suite's synthetic pack (see the package README, "Writing a pack").
+id = "example"
+version = "1.0.0"
+contract = "1.0"
+tier = "loads"
+title = "Example pack"
+description = "A synthetic pack that registers two greetings and needs a clock."
+
+[provides]
+greeting = ["hello", "goodbye"]
+
+[needs]
+clock = ["utc"]

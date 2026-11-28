@@ -1,0 +1,143 @@
+{
+  "rule": "Append-only, one entry per contract version, oldest first. Inside a major an entry may only ADD (a hook, a defaulted hook parameter, a protocol, an optional manifest property, a schema definition); everything already there stays unchanged (pack_contracts.contract). Never edit an entry: the suite checks every released copy is a prefix of this file. Enter a change as a new version.",
+  "entries": [
+    {
+      "contract": "1.0",
+      "names": {
+        "project": "pack",
+        "plugin_group": "pack_contracts.plugin",
+        "manifest_group": "pack_contracts.manifest"
+      },
+      "hooks": {
+        "register_contributions": {
+          "params": {
+            "register": {
+              "annotation": "Callable[[Contribution], None]",
+              "required": true
+            }
+          },
+          "returns": "None",
+          "firstresult": false,
+          "historic": false
+        }
+      },
+      "protocols": {
+        "Contribution": {
+          "kind": "property -> str",
+          "name": "property -> str"
+        }
+      },
+      "manifest": {
+        "$defs": {
+          "Tier": {
+            "enum": [
+              "declared",
+              "loads",
+              "conformant"
+            ],
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 64,
+            "pattern": "^[0-9]+(?:\\.[0-9]+)*[0-9A-Za-z.+!-]*$",
+            "type": "string"
+          },
+          "contract": {
+            "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/$defs/Tier"
+          },
+          "provides": {
+            "additionalProperties": false,
+            "minProperties": 1,
+            "patternProperties": {
+              "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$": {
+                "items": {
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "propertyNames": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$"
+            },
+            "type": "object"
+          },
+          "needs": {
+            "additionalProperties": false,
+            "patternProperties": {
+              "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$": {
+                "items": {
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "propertyNames": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$"
+            },
+            "type": "object"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 90,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "description": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "contract",
+          "tier",
+          "provides"
+        ],
+        "type": "object"
+      },
+      "manifest_rules": {
+        "_no_self_need": "model after",
+        "_provides_something": "field provides after",
+        "_unique_and_frozen": "field provides,needs after"
+      }
+    }
+  ]
+}
