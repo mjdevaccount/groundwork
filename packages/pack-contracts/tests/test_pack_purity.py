@@ -22,12 +22,26 @@ MODULES = ["pack_contracts", *(f"pack_contracts.{m.name}" for m in pkgutil.iter_
 
 
 def _loaded_roots(modules: list[str]) -> set[str]:
-    probe = (  # what the bare interpreter already loaded (site hooks, .pth files) is not the package's
+    # What the bare interpreter already loaded (site hooks, .pth files) is not the package's. The
+    # standard library is `sys.stdlib_module_names` PLUS any module whose file lives in the stdlib
+    # directories: the name list omits per-platform modules such as Linux's
+    # `_sysconfigdata_<abi>_<platform>`, which `sysconfig` loads by a generated name.
+    probe = (
         "import importlib, sys\n"
         "before = {m.split('.')[0] for m in sys.modules}\n"
         f"for m in {modules!r}: importlib.import_module(m)\n"
         "after = {m.split('.')[0] for m in sys.modules}\n"
-        "print(' '.join(sorted(after - before - set(sys.stdlib_module_names))))\n"
+        "import os, sysconfig\n"
+        "def under(keys):\n"
+        "    return tuple(os.path.normcase(os.path.realpath(sysconfig.get_path(k))) + os.sep for k in keys)\n"
+        "std, site = under(('stdlib', 'platstdlib')), under(('purelib', 'platlib'))\n"
+        "def stdlib(name):\n"
+        "    if name in sys.stdlib_module_names:\n"
+        "        return True\n"
+        "    f = getattr(sys.modules.get(name), '__file__', None)\n"
+        "    p = os.path.normcase(os.path.realpath(f)) if f else ''\n"
+        "    return bool(p) and p.startswith(std) and not p.startswith(site)  # a system site-packages nests\n"
+        "print(' '.join(sorted(m for m in after - before if not stdlib(m))))\n"
     )
     out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=True).stdout
     return set(out.split())
