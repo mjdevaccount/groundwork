@@ -24,14 +24,16 @@ to its declared imports.
 | `config` | `Domain` + `knob()`: every knob has a class (secret, topology, tunable, policy, operational, sealed), a source and a fingerprint; `load_all()` at the composition root; `python -m platform_kit.config lint\|schema\|catalog` | `config` |
 | `service` | the FastAPI composition root: `Database`, `PgIdentity`, `build_lifespan()`, `ServiceSettings`, typed env-flag families, the `fresh` envelope, one error body, an API-key guard, `/healthz` + `/readyz`, an admin-run timeline | `service` |
 | `plugins` | `load()` / `collect()`: pluggy as the transport, `Registry` as the store; a plugin that fails to load stops the process | `plugins` |
+| `packs` | `load_packs()` / `survey()`: the ONE path from an installed [pack-contracts](../pack-contracts) pack to its contributions (manifests read without import, a `<PREFIX>_LOAD_PACKS` allow-list, the merge, the import through `plugins`, the key check); every pack's state in one report; `python -m platform_kit.packs list` | `packs` |
 | `testing.plugin_conformance` | `PluginConformance`, the mixin a plugin loader runs to prove it keeps the loader contract | `plugins` |
 
 The modules without an extra import the standard library only, so `import platform_kit.notify`
 loads no third-party module.
 
-The reasons behind three planes, and what was ruled out for each, are in `docs/`:
-[`plugins.md`](docs/plugins.md) (the R1-R10 loader contract), [`rate-budget.md`](docs/rate-budget.md)
-and [`config.md`](docs/config.md) (the knob taxonomy).
+The reasons behind four planes, and what was ruled out for each, are in `docs/`:
+[`plugins.md`](docs/plugins.md) (the R1-R10 loader contract), [`packs.md`](docs/packs.md) (the
+pack loader on top of it), [`rate-budget.md`](docs/rate-budget.md) and [`config.md`](docs/config.md)
+(the knob taxonomy).
 
 Every plane that can fail says so somewhere a caller can watch: `Delivery.recorded` and an
 `on_degraded` hook for notify, `BudgetStats` for the budget, an exit code of 2 ("did not finish

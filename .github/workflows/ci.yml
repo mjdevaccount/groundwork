@@ -128,14 +128,15 @@ jobs:
         include:
           - package: primitives-kit
           - package: pack-contracts
-          # Every extra at its floor, with primitives-kit (its first-party dependency) at ITS floor.
+          # Every extra at its floor, with its first-party dependencies (primitives-kit, pack-contracts)
+          # from the checkout at THEIR floors.
           # The suite's test-only clients install AFTER, at normal resolution (a driver's oldest
           # release is not a bound this package declares). The Postgres tests skip in this leg (no
           # database): the locked pytest job runs them. The lowest starlette predates anyio's
           # BlockingPortal move, a deprecation in a TEST import (TestClient) this package never makes.
           - package: platform-kit
-            extras: "[config,plugins,service,sql]"
-            with: ./packages/primitives-kit
+            extras: "[config,packs,plugins,service,sql]"
+            with: ./packages/primitives-kit ./packages/pack-contracts
             test_deps: aiosqlite asyncpg httpx
             ignore_warning: "The anyio.abc.BlockingPortal alias is deprecated"
     steps:
@@ -153,7 +154,8 @@ jobs:
           MATRIX_WITH: ${{ matrix.with }}
         run: |
           reqs=("./packages/${MATRIX_PACKAGE}${MATRIX_EXTRAS}" "pytest>=9.2")
-          if [ -n "${MATRIX_WITH}" ]; then reqs=("${MATRIX_WITH}" "${reqs[@]}"); fi
+          read -ra with <<< "${MATRIX_WITH}"
+          reqs=("${with[@]}" "${reqs[@]}")
           uv pip install --resolution lowest-direct "${reqs[@]}"
       - name: install the test-only clients
         if: matrix.test_deps

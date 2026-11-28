@@ -6,13 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.0]
+
 ### Added
 
-- `docs/plugins.md`, `docs/rate-budget.md`, `docs/config.md`: the design records of three planes
-  (reasons, invariants, ruled-out options). The purity scan now reads `docs/` too.
+- `platform_kit.packs` (extra `[packs]`: pluggy and pack-contracts 0.1.0 by its release tag): the
+  pack loader. `load_packs(pin=, host_provides=)` reads every installed manifest without importing
+  the pack, applies the allow-list (`pin_from_env(prefix)` reads `<PREFIX>_LOAD_PACKS`: unset =
+  every installed pack, `""` = none, `"a,b"` = exactly those), refuses a key two packs provide and
+  a need nobody provides from the manifests alone, imports through `plugins.load`, collects
+  `register_contributions` per pack and holds the registered keys equal to the manifest's
+  `provides`. Every pack ends `loaded`, `excluded`, `failed` (with the step and the reason) or
+  `held`; one `pack_status` log line each, `Packs.series()` for an exporter, and `PackLoadError`
+  (carrying the report) when any pack failed. `survey()` is the same run without the raise, and
+  `python -m platform_kit.packs list` prints it (exit 1 on a failure): the list-packs surface.
+- `docs/packs.md`: the design record of the pack loader; `docs/plugins.md`, `docs/rate-budget.md`,
+  `docs/config.md`: the design records of three more planes (reasons, invariants, ruled-out
+  options). The purity scan now reads `docs/` too.
 
 ### Changed
 
+- `plugins.collect` calls each hookimpl with only the arguments it names, filling the hookspec's
+  defaults (`HookSpec.kwargdefaults`), as pluggy's own hook caller does since 1.7. A hookspec that
+  gains a defaulted parameter in a minor contract version now reaches an implementation that names
+  it; one that names an argument `collect` cannot pass is refused at stage `hook`.
 - The consumer-name scan moved out of `tests/test_purity.py` to the workspace's
   `tests/test_no_consumer_knowledge.py`, which runs the same deny-list over every package
   (test-only; nothing shipped changes).

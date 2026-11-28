@@ -7,6 +7,10 @@ version; each release notes the contract it ships.
 
 ## [Unreleased]
 
+### Changed
+
+- README: the C2 seam section names the loader that plugs in, `platform_kit.packs` (docs only).
+
 ## [0.1.0]
 
 Contract 1.0.

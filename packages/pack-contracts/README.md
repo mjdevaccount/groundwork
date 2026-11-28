@@ -149,8 +149,9 @@ cross-field rules, such as a pack needing what it provides itself, are the model
 
 ## The C2 seam: what plugs into this
 
-The host side is platform-kit's strict loader (`platform_kit.plugins`, R1-R10). The next step wires
-it to these contracts, and these contracts were shaped for it:
+The host side is platform-kit's strict loader (`platform_kit.plugins`, R1-R10), and the loader
+that wires it to these contracts is `platform_kit.packs` (platform-kit 0.2.0, extra `[packs]`;
+its design record is `packages/platform-kit/docs/packs.md`). These contracts were shaped for it:
 
 - `read_manifests()` runs FIRST; the allow-list pin (`*_LOAD_PACKS`) filters `Manifests.packs`,
   and only then does `plugins.load(pm, group=PLUGIN_GROUP, hookspecs=PackSpec, pin=...)` import
@@ -165,4 +166,5 @@ it to these contracts, and these contracts were shaped for it:
   pluggy's hookspec defaults are not applied there. When a minor version adds a defaulted
   parameter, `collect` must pass the spec's defaults (`HookSpec.kwargdefaults`) or call the hook
   through `pm.hook`.
-- `list-packs` prints `Manifests.series()` joined with `Loaded.origin`.
+- `list-packs` (`python -m platform_kit.packs list`) prints every installed pack's state, with its
+  manifest version and origin, including the packs the pin excluded and the ones that failed.
