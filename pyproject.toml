@@ -14,7 +14,7 @@ pack-contracts = { workspace = true }
 [dependency-groups]
 dev = [
     "primitives-kit",
-    "platform-kit[config,plugins,service,sql]",
+    "platform-kit[config,packs,plugins,service,sql]",
     "pack-contracts",
     "aiosqlite>=0.21",
     "asyncpg>=0.30",
@@ -28,7 +28,7 @@ lint = [
     "ruff>=0.14",
     "import-linter>=2.5",
     "primitives-kit",
-    "platform-kit[config,plugins,service,sql]",
+    "platform-kit[config,packs,plugins,service,sql]",
     "pack-contracts",
     "twine>=7.0",
     "actionlint-py==1.7.12.25",
@@ -36,7 +36,7 @@ lint = [
 ]
 types = [
     "primitives-kit",
-    "platform-kit[config,plugins,service,sql]",
+    "platform-kit[config,packs,plugins,service,sql]",
     "pack-contracts",
     "aiosqlite>=0.21",
     "asyncpg>=0.30",
@@ -124,9 +124,11 @@ type = "forbidden"
 source_modules = ["primitives_kit"]
 forbidden_modules = ["platform_kit", "pack_contracts", "llm_ports", "content_data", "market_ports"]
 
+# platform_kit sits on the floor and on pack_contracts (its `packs` loader is the host side of the
+# contracts a pack is written against; the reverse is the "pack-contracts" contract below).
 [[tool.importlinter.contracts]]
 id = "platform"
-name = "platform_kit imports no first-party library but the floor"
+name = "platform_kit imports no first-party library but the floor and the pack contracts"
 type = "forbidden"
 source_modules = ["platform_kit"]
 forbidden_modules = ["llm_ports", "content_data", "market_ports"]

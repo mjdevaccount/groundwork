@@ -1,11 +1,11 @@
 [project]
 name = "platform-kit"
-version = "0.1.1"
+version = "0.2.0"
 description = "The general service platform: typed config knobs, a duplicate-guarded registry, a strict plugin loader, the push-notification pipeline, the watchdog plane, a shared Postgres rate window and a FastAPI service chassis."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
-keywords = ["config", "registry", "plugins", "notifications", "watchdog", "rate-limit", "fastapi"]
+keywords = ["config", "registry", "plugins", "packs", "notifications", "watchdog", "rate-limit", "fastapi"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Framework :: FastAPI",
@@ -46,6 +46,12 @@ service = [
 ]
 # platform_kit.plugins and platform_kit.testing.plugin_conformance (the suite also needs pytest).
 plugins = ["pluggy>=1.7"]
+# platform_kit.packs: the pack loader (manifests, allow-list, merge, import, key check) over
+# pack-contracts, the contracts a pack is written against.
+packs = [
+    "pluggy>=1.7",
+    "pack-contracts @ git+https://github.com/mjdevaccount/groundwork@pack-contracts-v0.1.0#subdirectory=packages/pack-contracts",
+]
 
 [project.urls]
 Repository = "https://github.com/mjdevaccount/groundwork"

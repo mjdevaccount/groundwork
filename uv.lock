@@ -20,7 +20,7 @@ dev = [
     { name = "httpx2" },
     { name = "pack-contracts", editable = "packages/pack-contracts" },
     { name = "packaging", specifier = ">=24" },
-    { name = "platform-kit", extras = ["config", "plugins", "service", "sql"], editable = "packages/platform-kit" },
+    { name = "platform-kit", extras = ["config", "packs", "plugins", "service", "sql"], editable = "packages/platform-kit" },
     { name = "primitives-kit", editable = "packages/primitives-kit" },
     { name = "pytest", specifier = ">=9.2" },
     { name = "pytest-cov", specifier = ">=7.0" },
@@ -30,7 +30,7 @@ lint = [
     { name = "actionlint-py", specifier = "==1.7.12.25" },
     { name = "import-linter", specifier = ">=2.5" },
     { name = "pack-contracts", editable = "packages/pack-contracts" },
-    { name = "platform-kit", extras = ["config", "plugins", "service", "sql"], editable = "packages/platform-kit" },
+    { name = "platform-kit", extras = ["config", "packs", "plugins", "service", "sql"], editable = "packages/platform-kit" },
     { name = "primitives-kit", editable = "packages/primitives-kit" },
     { name = "ruff", specifier = ">=0.14" },
     { name = "twine", specifier = ">=7.0" },
@@ -43,7 +43,7 @@ types = [
     { name = "mypy", specifier = ">=2.4" },
     { name = "pack-contracts", editable = "packages/pack-contracts" },
     { name = "packaging", specifier = ">=24" },
-    { name = "platform-kit", extras = ["config", "plugins", "service", "sql"], editable = "packages/platform-kit" },
+    { name = "platform-kit", extras = ["config", "packs", "plugins", "service", "sql"], editable = "packages/platform-kit" },
     { name = "primitives-kit", editable = "packages/primitives-kit" },
     { name = "pyright", extras = ["nodejs"], specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.2" },
@@ -1252,7 +1252,7 @@ wheels = [
 
 [[package]]
 name = "platform-kit"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "packages/platform-kit" }
 dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
@@ -1262,6 +1262,10 @@ dependencies = [
 config = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
+]
+packs = [
+    { name = "pack-contracts" },
+    { name = "pluggy" },
 ]
 plugins = [
     { name = "pluggy" },
@@ -1281,6 +1285,8 @@ sql = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", marker = "extra == 'service'", specifier = ">=0.115" },
+    { name = "pack-contracts", marker = "extra == 'packs'", editable = "packages/pack-contracts" },
+    { name = "pluggy", marker = "extra == 'packs'", specifier = ">=1.7" },
     { name = "pluggy", marker = "extra == 'plugins'", specifier = ">=1.7" },
     { name = "primitives-kit", marker = "extra == 'sql'", editable = "packages/primitives-kit" },
     { name = "pydantic", marker = "extra == 'config'", specifier = ">=2.9" },
@@ -1292,7 +1298,7 @@ requires-dist = [
     { name = "structlog", marker = "extra == 'service'", specifier = ">=24.4" },
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2025.2" },
 ]
-provides-extras = ["sql", "config", "service", "plugins"]
+provides-extras = ["sql", "config", "service", "plugins", "packs"]
 
 [[package]]
 name = "pluggy"

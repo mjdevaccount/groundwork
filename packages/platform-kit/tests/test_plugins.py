@@ -172,3 +172,60 @@ def test_a_registered_thing_without_a_key_names_the_plugin() -> None:
     with pytest.raises(PluginLoadError, match="no key") as ei:
         collect(pm, "register_widgets", store, loaded=loaded)
     assert ei.value.plugin == "bare"
+
+
+class _DefaultsSpec:
+    @hookspec
+    def register_widgets(self, register, flavour: str = "plain") -> None:
+        """A minor added `flavour`, defaulted."""
+
+    @hookspec
+    def register_gadgets(self, register, size) -> None:
+        """`size` has no default, so collect cannot pass it."""
+
+
+def test_collect_fills_hookspec_defaults_and_passes_only_named_arguments() -> None:
+    class Old:
+        @hookimpl
+        def register_widgets(self, register) -> None:
+            register(Widget("old"))
+
+    class New:
+        @hookimpl
+        def register_widgets(self, register, flavour) -> None:
+            register(Widget(f"new-{flavour}"))
+
+    pm = pluggy.PluginManager(GROUP)
+    loaded = load(pm, group=GROUP, hookspecs=_DefaultsSpec, builtins=[("old", Old()), ("new", New())],
+                  entry_points=lambda: ())  # fmt: skip
+    store: Registry[Widget] = Registry("widget")
+    collect(pm, "register_widgets", store, loaded=loaded, kind=Widget)
+    assert list(store) == ["old", "new-plain"]
+
+
+def test_collect_refuses_an_argument_it_cannot_pass() -> None:
+    class Sized:
+        @hookimpl
+        def register_gadgets(self, register, size) -> None:
+            raise AssertionError("never called")
+
+    pm = pluggy.PluginManager(GROUP)
+    loaded = load(pm, group=GROUP, hookspecs=_DefaultsSpec, builtins=[("sized", Sized())], entry_points=lambda: ())
+    with pytest.raises(PluginLoadError, match=r"takes \['register', 'size'\]") as ei:
+        collect(pm, "register_gadgets", Registry("gadget"), loaded=loaded)
+    assert ei.value.stage == "hook" and ei.value.plugin == "sized"
+
+
+def test_collect_refuses_an_impl_that_cannot_register() -> None:
+    """A hookimpl that does not take `register` would load and contribute nothing (R7's shape)."""
+
+    class Quiet:
+        @hookimpl
+        def register_widgets(self) -> None:
+            raise AssertionError("never called")
+
+    pm = pluggy.PluginManager(GROUP)
+    loaded = load(pm, group=GROUP, hookspecs=_DefaultsSpec, builtins=[("q", Quiet())], entry_points=lambda: ())
+    with pytest.raises(PluginLoadError, match="must take `register`") as ei:
+        collect(pm, "register_widgets", Registry("widget"), loaded=loaded)
+    assert ei.value.stage == "hook"

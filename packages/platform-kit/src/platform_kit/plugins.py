@@ -181,6 +181,8 @@ def collect[S](
     if caller is None:
         raise ValueError(f"no hook {hook!r} -- was it in the hookspecs passed to load()?")
     impls = {i.plugin_name: i for i in caller.get_hookimpls()}
+    spec = caller.spec
+    defaults: dict[str, object] = dict(spec.kwargdefaults) if spec is not None else {}
     owner: dict[str, str] = {}
     for name in loaded.plugins:
         impl = impls.get(name)
@@ -202,8 +204,23 @@ def collect[S](
             store.add(thing)  # type: ignore[arg-type]
             owner[k] = _plugin
 
+        # The impl gets only the arguments it names, the hookspec's defaults filled in (what pluggy's
+        # own HookCaller does since 1.7), so a minor that adds a defaulted parameter leaves an older
+        # plugin loading unchanged and a newer one receiving the default.
+        # An impl that does not take `register` can contribute nothing: refused, as R7 refuses a
+        # hookimpl that matches no spec.
+        given: dict[str, object] = {**defaults, "register": register}
+        unknown = [a for a in impl.argnames if a not in given]
+        if unknown or "register" not in impl.argnames:
+            raise PluginLoadError(
+                loaded.group,
+                name,
+                "hook",
+                f"{hook} implementation takes {list(impl.argnames)}; it must take `register`, and collect "
+                f"passes only {sorted(given)}",
+            )
         try:
-            impl.function(register=register)
+            impl.function(**{a: given[a] for a in impl.argnames})
         except PluginLoadError:
             raise
         except Exception as exc:

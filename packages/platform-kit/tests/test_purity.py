@@ -35,6 +35,7 @@ DECLARED: dict[str | None, set[str]] = {
     "config": {"pydantic", "pydantic-settings"},
     "service": {"fastapi", "pydantic", "pydantic-settings", "sqlalchemy", "structlog"},
     "plugins": {"pluggy"},
+    "packs": {"pluggy", "pack-contracts"},
 }
 
 #: module path (relative to the package, "/"-separated, no ".py"; a trailing "/" = the subpackage) -> its extra
@@ -45,6 +46,7 @@ MODULE_EXTRA: dict[str, str] = {
     "config/": "config",
     "service/": "service",
     "plugins": "plugins",
+    "packs": "packs",
     "testing/plugin_conformance": "plugins",
 }
 
@@ -59,6 +61,7 @@ ROOT_DIST: dict[str, str] = {
     "starlette": "fastapi",  # fastapi pins it
     "structlog": "structlog",
     "pluggy": "pluggy",
+    "pack_contracts": "pack-contracts",
 }
 
 #: the conformance suite is a test helper: it runs under the consumer's pytest, never in production
