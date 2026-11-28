@@ -52,8 +52,8 @@ __all__ = ["SLUG_PATTERN", "Keys", "PackManifest", "Slug", "Tier"]
 #: a lower-case identifier: a letter, then letters/digits, `-` or `_` between runs
 SLUG_PATTERN = r"^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$"
 Slug = Annotated[str, StringConstraints(pattern=SLUG_PATTERN, max_length=64)]
-#: kind -> the names of that kind, each list non-empty
-Keys = Mapping[Slug, Annotated[tuple[Slug, ...], Field(min_length=1)]]
+#: kind -> the names of that kind, each list non-empty and without repeats
+Keys = Mapping[Slug, Annotated[tuple[Slug, ...], Field(min_length=1, json_schema_extra={"uniqueItems": True})]]
 # A kind that is not a slug is refused by the JSON Schema too, not only by the model. Spelled out
 # because pydantic's own projection of a constrained key differs between versions.
 _KEYS_SCHEMA: dict[str, Any] = {
@@ -145,6 +145,23 @@ class PackManifest(BaseModel):
     @field_serializer("provides", "needs")
     def _plain(self, value: Mapping[str, tuple[str, ...]]) -> dict[str, list[str]]:
         return {kind: list(names) for kind, names in value.items()}
+
+    def __hash__(self) -> int:
+        """By value, so a host can keep manifests in a set or key a mapping by them. pydantic's
+        frozen hash would hash the field values, and a read-only mapping (`provides`, `needs`) is
+        not hashable."""
+        return hash(
+            (
+                self.id,
+                self.version,
+                self.contract,
+                self.tier,
+                self.provided(),
+                self.needed(),
+                self.title,
+                self.description,
+            )
+        )
 
     @property
     def contract_version(self) -> ContractVersion:

@@ -9,7 +9,8 @@ The value is a package and a file name, not an object: the reader finds the pack
 with `importlib.util.find_spec` (the top-level name) and `importlib.machinery.PathFinder` (each
 level below it), which locate a package without executing it, and reads the file from there. So a
 pack whose import would fail, or would do work at import time, can still be refused, listed or
-diffed by its manifest alone. `.toml` and `.json` are read (both standard library).
+diffed by its manifest alone. `.toml` and `.json` are read (both standard library); a key repeated
+in a JSON object is refused, as TOML already refuses one (`json` alone keeps the last silently).
 
 EVERY FAILURE RAISES `ManifestError(pack, stage)`, a subclass of `ImportError`, so a host that
 stops on a plugin that did not load stops on a manifest that did not validate too. There is no
@@ -19,12 +20,15 @@ installed. Stages, in the order they are checked:
   duplicate  two installed entry points share a name
   locate     the value is not `<package>:<file>`, the package is not importable, or the file is not
              in its directory
-  read       the file could not be read or parsed (or its suffix is not `.toml` / `.json`)
+  read       the file could not be read or parsed (or its suffix is not `.toml` / `.json`, or a
+             JSON object repeats a key)
+  contract   the manifest's `contract` is one this host does not satisfy (another MAJOR, or a newer
+             MINOR). Checked on the parsed data BEFORE the model validates it: a pack written for a
+             newer minor may use a field this host's model does not know yet, and the fix is to
+             upgrade the host, not to edit the manifest.
   validate   the content is not a valid `PackManifest`
   identity   the manifest's `id` is not the entry-point name, or its `version` is not the installed
              distribution's
-  contract   the manifest's contract is one this host does not satisfy (another MAJOR, or a newer
-             MINOR)
 
 TELEMETRY: `read_manifests` logs `pack_manifests_read` at INFO and returns `Manifests`, whose
 `series()` renders `pack_manifest{group,pack,version,contract,tier,origin} = 1` per pack for the
@@ -77,9 +81,24 @@ log: logging.Logger = logging.getLogger("pack_contracts.discovery")
 #: the entry-point group that names a pack's manifest file
 MANIFEST_GROUP = "pack_contracts.manifest"
 
-Stage = Literal["duplicate", "locate", "read", "validate", "identity", "contract"]
-STAGES: tuple[str, ...] = ("duplicate", "locate", "read", "validate", "identity", "contract")
-_PARSERS: dict[str, Callable[[str], Any]] = {".toml": tomllib.loads, ".json": json.loads}
+Stage = Literal["duplicate", "locate", "read", "contract", "validate", "identity"]
+STAGES: tuple[str, ...] = ("duplicate", "locate", "read", "contract", "validate", "identity")
+
+
+def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"key {key!r} appears more than once in one object")
+        out[key] = value
+    return out
+
+
+def _json_loads(text: str) -> Any:
+    return json.loads(text, object_pairs_hook=_unique_keys)
+
+
+_PARSERS: dict[str, Callable[[str], Any]] = {".toml": tomllib.loads, ".json": _json_loads}
 
 
 class ManifestError(ImportError):
@@ -134,9 +153,12 @@ class Manifests:
         ]
 
 
-def parse_manifest(text: str, *, suffix: str, pack: str = "?") -> PackManifest:
-    """Parse and validate manifest `text` in the format `suffix` names (`.toml` or `.json`).
-    Raises `ManifestError` at `read` or `validate`; `pack` only labels the error."""
+def parse_manifest(
+    text: str, *, suffix: str, pack: str = "?", host: ContractVersion = CONTRACT_VERSION
+) -> PackManifest:
+    """Parse manifest `text` in the format `suffix` names (`.toml` or `.json`), check its contract
+    against `host`, then validate it. Raises `ManifestError` at `read`, `contract` or `validate`;
+    `pack` only labels the error."""
     parser = _PARSERS.get(suffix.lower())
     if parser is None:
         raise ManifestError(pack, "read", f"a manifest is .toml or .json, not {suffix or 'no suffix'!r}")
@@ -144,10 +166,25 @@ def parse_manifest(text: str, *, suffix: str, pack: str = "?") -> PackManifest:
         data = parser(text)
     except ValueError as exc:  # tomllib.TOMLDecodeError and json.JSONDecodeError are both ValueErrors
         raise ManifestError(pack, "read", f"not valid {suffix.lower()[1:]}: {exc}") from exc
+    _check_contract(data, pack=pack, host=host)
     try:
         return PackManifest.model_validate(data)
     except ValidationError as exc:
         raise ManifestError(pack, "validate", str(exc)) from exc
+
+
+def _check_contract(data: Any, *, pack: str, host: ContractVersion) -> None:
+    """The contract check, on the parsed data. A `contract` that is absent or not `MAJOR.MINOR` is
+    left to `validate`, which names it."""
+    raw = data.get("contract") if isinstance(data, dict) else None
+    if not isinstance(raw, str):
+        return
+    try:
+        wanted = ContractVersion.parse(raw)
+    except ValueError:
+        return
+    if not satisfies(host, wanted):
+        raise ManifestError(pack, "contract", f"the pack targets contract {wanted}; this host speaks {host}")
 
 
 def _package_dirs(pack: str, module: str) -> list[Path]:
@@ -193,7 +230,7 @@ def read_manifest(ep: Any, *, host: ContractVersion = CONTRACT_VERSION) -> Manif
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise ManifestError(pack, "read", f"{path}: {exc}") from exc
-    manifest = parse_manifest(text, suffix=path.suffix, pack=pack)
+    manifest = parse_manifest(text, suffix=path.suffix, pack=pack, host=host)
     origin, dist_version = _origin(ep)
     if manifest.id != pack:
         raise ManifestError(pack, "identity", f"manifest id {manifest.id!r} is not the entry-point name {pack!r}")
@@ -201,8 +238,6 @@ def read_manifest(ep: Any, *, host: ContractVersion = CONTRACT_VERSION) -> Manif
         raise ManifestError(
             pack, "identity", f"manifest version {manifest.version!r} is not the distribution's {dist_version!r}"
         )
-    if not satisfies(host, manifest.contract_version):
-        raise ManifestError(pack, "contract", f"the pack targets contract {manifest.contract}; this host speaks {host}")
     return ManifestRecord(pack=pack, manifest=manifest, origin=origin, source=str(path))
 
 

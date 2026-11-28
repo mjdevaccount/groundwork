@@ -96,9 +96,13 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
+      # Full history and tags: pack-contracts' ledger test compares the committed surface ledger with
+      # the copy at every `pack-contracts-v*` tag and on `base` (append-only); REQUIRED=1 makes a
+      # shallow clone FAIL that test instead of skipping it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           python-version: ${{ matrix.python }}
@@ -107,6 +111,7 @@ jobs:
         env:
           PLATFORM_KIT_TEST_PG: postgresql://postgres:test@localhost:5432/postgres
           PLATFORM_KIT_TEST_PG_REQUIRED: "1"
+          PACK_CONTRACTS_LEDGER_HISTORY_REQUIRED: "1"
         run: uv run --no-sync pytest -q --cov --cov-report=term
 
   # A plain (non-editable) install of each package at its lowest declared bounds, so the test

@@ -76,9 +76,11 @@ locates the package directory with `importlib.util.find_spec` (the top-level nam
 then reads and validates the file. A pack whose import would fail can still be listed or refused.
 
 Every failure is a `ManifestError(pack, stage)`, a subclass of `ImportError`; there is no "skip the
-bad one". The stages, in check order: `duplicate`, `locate`, `read`, `validate`, `identity` (the
-id is not the entry-point name, or the version is not the distribution's), `contract` (another
-major, or a newer minor than this host speaks).
+bad one". The stages, in check order: `duplicate`, `locate`, `read` (a JSON object that repeats
+a key is refused here, as TOML refuses one), `contract` (another major, or a newer minor than this
+host speaks; checked on the parsed data BEFORE validation, so a pack written for a newer minor that
+uses a field this host does not know is told to upgrade the host, not to fix a typo), `validate`,
+`identity` (the id is not the entry-point name, or the version is not the distribution's).
 
 **Telemetry.** `read_manifests` logs `pack_manifests_read` at INFO and returns `Manifests`, whose
 `series()` renders `pack_manifest{group,pack,version,contract,tier,origin} = 1` per pack for the
@@ -90,20 +92,31 @@ in its deploy config.
 
 The contract version is independent of the distribution version. Inside one major, a version may
 only **add**: a hook, a **defaulted** parameter on a hook (pluggy 1.7 fills a hookspec's defaults
-when the caller omits them, and passes an implementation only the parameters it names), or an
-**optional** manifest field. Anything else is a new major: a removed or renamed hook or parameter, a
-new required parameter, a changed default, a changed `firstresult` / `historic`, a removed manifest
-field or a new required one.
+when the caller omits them, and passes an implementation only the parameters it names), a protocol,
+or an **optional** manifest property. Everything already there stays exactly as it was. Anything
+else is a new major: a renamed project name or entry-point group, a removed or renamed hook or
+parameter, a new required parameter, a changed annotation or default, a changed `firstresult` /
+`historic`, a member added to or changed on a protocol, and any change to an existing manifest
+property (its type, pattern, bounds, enum or default) or to the required set.
 
-`src/pack_contracts/surface-ledger.json` is append-only, one entry per contract version.
-`tests/test_surface.py` runs `verify_ledger()`: consecutive entries inside a major must be
-compatible, and the last entry must be `CONTRACT_VERSION` and equal the live surface. So a
-hookspec or manifest change fails the suite until it is entered as a new version
-(`python -m pack_contracts surface` prints the entry), and an incompatible one fails unless that
-version is a new major.
+`src/pack_contracts/surface-ledger.json` is append-only, one entry per contract version. An entry
+is the whole surface: the three names, each hook's parameters with their annotations and defaults,
+each protocol's members, and the manifest's JSON Schema without its prose (`description`, `title`).
+`tests/test_surface.py` holds it two ways:
+
+- `verify_ledger()`: consecutive entries inside a major must be compatible, and the last entry must
+  be `CONTRACT_VERSION` and equal the live surface. So a surface change fails the suite until it is
+  entered as a new version (`python -m pack_contracts surface` prints the entry), and an
+  incompatible one fails unless that version is a new major.
+- `append_only_errors()` over git: the ledger at every `pack-contracts-v*` tag and on `base` must
+  be a prefix of the committed one, so an entry edited in place (live surface and entry changed
+  together) fails too. CI's pytest job checks out full history and sets
+  `PACK_CONTRACTS_LEDGER_HISTORY_REQUIRED=1`, which turns "no history here, skip" into a failure.
 
 `src/pack_contracts/pack-manifest.schema.json` is generated from `PackManifest`
-(`python -m pack_contracts schema`) and `tests/test_schema.py` fails when they differ.
+(`python -m pack_contracts schema`) and `tests/test_schema.py` fails when they differ. The schema
+holds the shapes a schema can express (unknown keys, slugs, non-empty name lists without repeats);
+cross-field rules, such as a pack needing what it provides itself, are the model's alone.
 
 ## Where it came from
 

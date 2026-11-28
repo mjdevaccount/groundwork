@@ -132,7 +132,10 @@ def test_no_file_names_a_consumer() -> None:
     hits: set[str] = set()
     for pkg_dir in packages.values():
         files = _scanned(pkg_dir)
-        assert len(files) > 5, (pkg_dir, files)
+        # each walk must find its own files: the three metadata files are always appended, so a
+        # total count alone passes a package whose source walk found nothing
+        for top in ("src", "tests"):
+            assert any(p.suffix == ".py" and (pkg_dir / top) in p.parents for p in files), (pkg_dir, top)
         hits |= {
             f"{p.relative_to(ROOT).as_posix()}: {f}"
             for p in files

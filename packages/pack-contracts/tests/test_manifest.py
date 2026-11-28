@@ -55,6 +55,14 @@ def test_it_is_frozen_all_the_way_down() -> None:
         m.needs["more"] = ("x",)  # type: ignore[index]
 
 
+def test_it_is_hashable_by_value() -> None:
+    a = PackManifest.model_validate(_base(needs={"clock": ["utc"]}))
+    b = PackManifest.model_validate(_base(needs={"clock": ["utc"]}))
+    c = PackManifest.model_validate(_base(version="1.0.1"))
+    assert a == b and hash(a) == hash(b)
+    assert {a, b, c} == {a, c} and len({a, b, c}) == 2
+
+
 @pytest.mark.parametrize(
     ("over", "needle"),
     [

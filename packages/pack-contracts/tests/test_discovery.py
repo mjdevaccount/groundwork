@@ -188,6 +188,7 @@ def test_without_a_distribution_the_version_is_not_compared(install: Callable[..
     install()
     rec = read_manifest(_ep("example_pack:pack.toml"))
     assert rec.origin == "entry-point example_pack:pack.toml"
+    assert hash(rec) == hash(read_manifest(_ep("example_pack:pack.toml")))  # a record is hashable
 
 
 @pytest.mark.parametrize(("declared", "host"), [("2.0", "1.0"), ("1.1", "1.0"), ("1.0", "2.0")])
@@ -198,6 +199,48 @@ def test_contract_refuses_what_the_host_does_not_satisfy(
     with pytest.raises(ManifestError) as caught:
         read_manifests(entry_points=site.entry_points, host=ContractVersion.parse(host))
     _stage(caught, "contract")
+
+
+def test_contract_is_checked_before_validation(install: Callable[..., Any], example_manifest: str) -> None:
+    """A pack written for a newer minor may use a manifest field this host's model does not know:
+    the refusal names the contract (upgrade the host), not the unknown field (edit the manifest)."""
+    text = example_manifest.replace('contract = "1.0"', 'contract = "1.1"') + 'colour = "blue"' + chr(10)
+    site = install(manifest=text)
+    with pytest.raises(ManifestError) as caught:
+        read_manifests(entry_points=site.entry_points, host=ContractVersion(1, 0))
+    _stage(caught, "contract")
+    assert "targets contract 1.1" in str(caught.value)
+
+
+@pytest.mark.parametrize("contract", ["one", "1", 1.0, None])
+def test_a_malformed_contract_is_left_to_validate(contract: object) -> None:
+    data: dict[str, object] = {"id": "example", "version": "1.0.0", "tier": "declared",
+                               "provides": {"greeting": ["hello"]}}  # fmt: skip
+    if contract is not None:
+        data["contract"] = contract
+    with pytest.raises(ManifestError) as caught:
+        parse_manifest(json.dumps(data), suffix=".json", pack="example")
+    _stage(caught, "validate")
+
+
+def test_a_json_manifest_may_not_repeat_a_key(example_manifest: str) -> None:
+    """`json` alone keeps the last of a repeated key: a declared need would vanish without a word."""
+    data = tomllib.loads(example_manifest)
+    body = json.dumps(data)[1:-1]
+    text = "{" + body + ', "needs": {}}'
+    with pytest.raises(ManifestError) as caught:
+        parse_manifest(text, suffix=".json", pack="example")
+    _stage(caught, "read")
+    assert "'needs' appears more than once" in str(caught.value)
+
+
+def test_parse_manifest_checks_the_contract_on_its_own() -> None:
+    data = {"id": "example", "version": "1.0.0", "contract": "2.0", "tier": "declared",
+            "provides": {"greeting": ["hello"]}}  # fmt: skip
+    with pytest.raises(ManifestError) as caught:
+        parse_manifest(json.dumps(data), suffix=".json", pack="example")
+    _stage(caught, "contract")
+    assert parse_manifest(json.dumps(data), suffix=".json", host=ContractVersion(2, 0)).contract == "2.0"
 
 
 def test_contract_accepts_an_older_minor(install: Callable[..., Any]) -> None:
@@ -213,7 +256,7 @@ def test_parse_manifest_reads_json(example_manifest: str) -> None:
 def test_the_error_is_an_import_error_with_a_closed_stage_list() -> None:
     err = ManifestError("p", "locate", "why")
     assert isinstance(err, ImportError) and err.name == "p" and "at locate: why" in str(err)
-    assert STAGES == ("duplicate", "locate", "read", "validate", "identity", "contract")
+    assert STAGES == ("duplicate", "locate", "read", "contract", "validate", "identity")
     with pytest.raises(ValueError, match="unknown manifest stage"):
         ManifestError("p", "skipped", "x")  # type: ignore[arg-type]
 
