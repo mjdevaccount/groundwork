@@ -251,7 +251,9 @@ def _merge(
             elif first != name:
                 for pack in (first, name):
                     run.fail(pack, "provides", f"{key} is provided by both {first!r} and {name!r}", records[pack])
-    available = set(host_provides) | {k for n in selected if not run.failed(n) for k in records[n].manifest.provided()}
+    # Against everything a SELECTED pack declares, failed or not: a pack whose provider failed is
+    # sound itself and ends `held` (the set loads whole), never blamed for its provider's defect.
+    available = set(host_provides) | {k for n in selected for k in records[n].manifest.provided()}
     for name in selected:
         missing = sorted(records[name].manifest.needed() - available)
         if missing:
@@ -269,21 +271,31 @@ def _load(
             pm, group=PLUGIN_GROUP, hookspecs=PackSpec, pin=",".join(selected), entry_points=lambda: eps
         )
     except plugins.PluginLoadError as exc:
-        for name in [exc.plugin] if exc.plugin in selected else selected:
+        # The import is all-or-nothing too: the pack it names failed, every other selected pack is held.
+        culprits = [exc.plugin] if exc.plugin in selected else list(selected)
+        for name in culprits:
             run.fail(name, "load", f"{exc.stage}: {exc}", records[name])
+        for name in selected:
+            if not run.failed(name):
+                run.set(
+                    name,
+                    "held",
+                    records[name],
+                    f"not loaded: {exc.plugin!r} failed at {exc.stage}; the set loads whole",
+                )
         return {}, {}
-    store: Registry[Contribution] = Registry("pack contribution", key=_contribution_id)
     contributions: dict[Key, Contribution] = {}
     owner: dict[Key, str] = {}
     for name in selected:
-        before = set(store)
+        # One store per pack: what a refused pack registered never reaches another pack's check.
+        store: Registry[Contribution] = Registry("pack contribution", key=_contribution_id)
         one = plugins.Loaded(loaded.group, (name,), loaded.origin)
         try:
-            plugins.collect(pm, "register_contributions", store, loaded=one, kind=Contribution, freeze=False)
+            plugins.collect(pm, "register_contributions", store, loaded=one, kind=Contribution)
         except plugins.PluginLoadError as exc:
             run.fail(name, "load", f"{exc.stage}: {exc}", records[name])
             continue
-        got = {(store[k].kind, store[k].name): store[k] for k in set(store) - before}
+        got = {(c.kind, c.name): c for c in store.values()}
         declared = records[name].manifest.provided()
         extra, absent = sorted(set(got) - declared), sorted(declared - set(got))
         if extra or absent:
@@ -297,7 +309,6 @@ def _load(
         contributions.update(got)
         owner.update(dict.fromkeys(got, name))
         run.set(name, "loaded", records[name])
-    store.freeze()
     return contributions, owner
 
 

@@ -195,13 +195,8 @@ def test_collect_fills_hookspec_defaults_and_passes_only_named_arguments() -> No
         def register_widgets(self, register, flavour) -> None:
             register(Widget(f"new-{flavour}"))
 
-    class Quiet:
-        @hookimpl
-        def register_widgets(self) -> None:
-            """Names no argument: called with none."""
-
     pm = pluggy.PluginManager(GROUP)
-    loaded = load(pm, group=GROUP, hookspecs=_DefaultsSpec, builtins=[("old", Old()), ("new", New()), ("q", Quiet())],
+    loaded = load(pm, group=GROUP, hookspecs=_DefaultsSpec, builtins=[("old", Old()), ("new", New())],
                   entry_points=lambda: ())  # fmt: skip
     store: Registry[Widget] = Registry("widget")
     collect(pm, "register_widgets", store, loaded=loaded, kind=Widget)
@@ -216,6 +211,21 @@ def test_collect_refuses_an_argument_it_cannot_pass() -> None:
 
     pm = pluggy.PluginManager(GROUP)
     loaded = load(pm, group=GROUP, hookspecs=_DefaultsSpec, builtins=[("sized", Sized())], entry_points=lambda: ())
-    with pytest.raises(PluginLoadError, match=r"wants \['size'\]") as ei:
+    with pytest.raises(PluginLoadError, match=r"takes \['register', 'size'\]") as ei:
         collect(pm, "register_gadgets", Registry("gadget"), loaded=loaded)
     assert ei.value.stage == "hook" and ei.value.plugin == "sized"
+
+
+def test_collect_refuses_an_impl_that_cannot_register() -> None:
+    """A hookimpl that does not take `register` would load and contribute nothing (R7's shape)."""
+
+    class Quiet:
+        @hookimpl
+        def register_widgets(self) -> None:
+            raise AssertionError("never called")
+
+    pm = pluggy.PluginManager(GROUP)
+    loaded = load(pm, group=GROUP, hookspecs=_DefaultsSpec, builtins=[("q", Quiet())], entry_points=lambda: ())
+    with pytest.raises(PluginLoadError, match="must take `register`") as ei:
+        collect(pm, "register_widgets", Registry("widget"), loaded=loaded)
+    assert ei.value.stage == "hook"

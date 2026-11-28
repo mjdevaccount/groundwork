@@ -345,3 +345,34 @@ def test_fake_entry_points_are_enough_for_a_failed_manifest() -> None:
     assert report.statuses == (
         PackStatus("ghost", "failed", None, None, "manifest", report.statuses[0].reason),
     ) and "locate" in (report.statuses[0].reason or "")
+
+
+# -- review regressions: no sound pack vanishes from the report or is blamed for another ---------------
+@pytest.mark.parametrize(
+    ("plugin", "stage"),
+    [
+        ("raise RuntimeError('boom')\n", "import"),
+        ("from pack_contracts import hookimpl\n\n@hookimpl\ndef register_contributionz(register):\n    pass\n",
+         "pending"),
+    ],
+)  # fmt: skip
+def test_an_import_failure_holds_every_other_selected_pack(site: Callable[..., Site], plugin: str, stage: str) -> None:
+    site("berry")
+    report = site("apple", plugin=plugin).run(pin=None)
+    assert _state(report) == {"apple": ("failed", "load"), "berry": ("held", None)}
+    berry = report.statuses[1]
+    assert berry.reason == f"not loaded: 'apple' failed at {stage}; the set loads whole"
+    assert berry.version == "1.0.0"
+
+
+def test_an_undeclared_registration_does_not_fail_the_pack_that_declares_it(site: Callable[..., Site]) -> None:
+    site("apple", provides={"thing": ["a"]}, registers=[("thing", "a"), ("thing", "b")])
+    report = site("berry", provides={"thing": ["b"]}).run(pin=None)
+    assert _state(report) == {"apple": ("failed", "keys"), "berry": ("loaded", None)}
+    assert dict(report.owner) == {("thing", "b"): "berry"}
+
+
+def test_a_pack_whose_provider_failed_is_held_not_blamed(site: Callable[..., Site]) -> None:
+    site("berry", plugin_ep=False)
+    report = site("apple", needs={"thing": ["berry"]}).run(pin=None)
+    assert _state(report) == {"apple": ("held", None), "berry": ("failed", "pair")}

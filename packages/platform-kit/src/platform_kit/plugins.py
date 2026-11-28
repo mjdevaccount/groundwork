@@ -207,11 +207,17 @@ def collect[S](
         # The impl gets only the arguments it names, the hookspec's defaults filled in (what pluggy's
         # own HookCaller does since 1.7), so a minor that adds a defaulted parameter leaves an older
         # plugin loading unchanged and a newer one receiving the default.
+        # An impl that does not take `register` can contribute nothing: refused, as R7 refuses a
+        # hookimpl that matches no spec.
         given: dict[str, object] = {**defaults, "register": register}
         unknown = [a for a in impl.argnames if a not in given]
-        if unknown:
+        if unknown or "register" not in impl.argnames:
             raise PluginLoadError(
-                loaded.group, name, "hook", f"{hook} implementation wants {unknown}; collect passes {sorted(given)}"
+                loaded.group,
+                name,
+                "hook",
+                f"{hook} implementation takes {list(impl.argnames)}; it must take `register`, and collect "
+                f"passes only {sorted(given)}",
             )
         try:
             impl.function(**{a: given[a] for a in impl.argnames})

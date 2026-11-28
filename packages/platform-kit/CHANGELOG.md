@@ -29,7 +29,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `plugins.collect` calls each hookimpl with only the arguments it names, filling the hookspec's
   defaults (`HookSpec.kwargdefaults`), as pluggy's own hook caller does since 1.7. A hookspec that
   gains a defaulted parameter in a minor contract version now reaches an implementation that names
-  it; one that names an argument `collect` cannot pass is refused at stage `hook`.
+  it. One that names an argument `collect` cannot pass, or does not take `register` (it could
+  contribute nothing), is refused at stage `hook`.
 - The consumer-name scan moved out of `tests/test_purity.py` to the workspace's
   `tests/test_no_consumer_knowledge.py`, which runs the same deny-list over every package
   (test-only; nothing shipped changes).
