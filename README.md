@@ -7,14 +7,17 @@ the consumers that pin it.
 | package | what it holds | depends on |
 |---|---|---|
 | [`primitives-kit`](packages/primitives-kit) | shared contracts with no behaviour: the rate-budget protocol, its error tree, the vendor quota reading | pydantic |
+| [`pack-contracts`](packages/pack-contracts) | what a pack is written against: a pack manifest read without importing the pack, the pluggy hookspecs and markers, a ledger that holds the versioning rule | pydantic, pluggy |
 | [`platform-kit`](packages/platform-kit) | the service platform: typed config, one push path, a watchdog plane, a duplicate-guarded registry, a strict plugin loader, a FastAPI composition root, fingerprints, a Postgres rate budget | stdlib core; per-extra: sqlalchemy + primitives-kit, pydantic-settings, fastapi + structlog, pluggy |
 
 ## Layers
 
 Imports point down only. `primitives-kit` is the floor: it imports no other package in this
 repository, so any library can depend on it without a cycle. `platform-kit` sits on it (its rate
-budget raises primitives-kit's budget errors) and imports no other package here. The rule is an import-linter
-contract (`pyproject.toml`), run in CI.
+budget raises primitives-kit's budget errors) and imports no other package here. `pack-contracts`
+sits on the floor too and imports nothing that runs a pack: a pack depends on it alone, never on
+platform-kit's loader. The rule is an import-linter contract (`pyproject.toml`), run in CI. No
+package names a consumer (`tests/test_no_consumer_knowledge.py` scans every one).
 
 ## Using a package
 
@@ -33,6 +36,7 @@ uv run pytest -q --cov
 uv run ruff check . && uv run ruff format --check . && uv run lint-imports
 uv run mypy && uv run pyright --verifytypes primitives_kit --ignoreexternal
 uv run pyright --verifytypes platform_kit --ignoreexternal
+uv run pyright --verifytypes pack_contracts --ignoreexternal
 ```
 
 platform-kit's SQL stores and rate budget run against a real Postgres: set

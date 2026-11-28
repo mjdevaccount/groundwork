@@ -9,11 +9,13 @@ members = ["packages/*"]
 [tool.uv.sources]
 primitives-kit = { workspace = true }
 platform-kit = { workspace = true }
+pack-contracts = { workspace = true }
 
 [dependency-groups]
 dev = [
     "primitives-kit",
     "platform-kit[config,plugins,service,sql]",
+    "pack-contracts",
     "aiosqlite>=0.21",
     "asyncpg>=0.30",
     "httpx2",
@@ -27,6 +29,7 @@ lint = [
     "import-linter>=2.5",
     "primitives-kit",
     "platform-kit[config,plugins,service,sql]",
+    "pack-contracts",
     "twine>=7.0",
     "actionlint-py==1.7.12.25",
     "zizmor==1.33.1",
@@ -34,6 +37,7 @@ lint = [
 types = [
     "primitives-kit",
     "platform-kit[config,plugins,service,sql]",
+    "pack-contracts",
     "aiosqlite>=0.21",
     "asyncpg>=0.30",
     "httpx2",
@@ -52,7 +56,7 @@ filterwarnings = ["error"]
 
 [tool.coverage.run]
 branch = true
-source = ["primitives_kit", "platform_kit"]
+source = ["primitives_kit", "platform_kit", "pack_contracts"]
 
 [tool.coverage.report]
 # Raised only, never lowered.
@@ -78,7 +82,7 @@ ignore = ["PLR2004", "PT018"]
 "packages/platform-kit/src/platform_kit/{config,service}/*" = ["TC001", "TC002", "TC003"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["primitives_kit", "platform_kit"]
+known-first-party = ["primitives_kit", "platform_kit", "pack_contracts"]
 
 [tool.mypy]
 strict = true
@@ -88,6 +92,8 @@ files = [
     "packages/primitives-kit/tests",
     "packages/platform-kit/src",
     "packages/platform-kit/tests",
+    "packages/pack-contracts/src",
+    "packages/pack-contracts/tests",
     "tests",
 ]
 plugins = ["pydantic.mypy"]
@@ -108,7 +114,7 @@ check_untyped_defs = true
 # other first-party package, so any library can depend on it without a cycle. A package added
 # here joins the contract in the same change that adds it.
 [tool.importlinter]
-root_packages = ["primitives_kit", "platform_kit"]
+root_packages = ["primitives_kit", "platform_kit", "pack_contracts"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -116,7 +122,7 @@ id = "floor"
 name = "primitives_kit imports no other first-party library"
 type = "forbidden"
 source_modules = ["primitives_kit"]
-forbidden_modules = ["platform_kit", "llm_ports", "content_data", "market_ports"]
+forbidden_modules = ["platform_kit", "pack_contracts", "llm_ports", "content_data", "market_ports"]
 
 [[tool.importlinter.contracts]]
 id = "platform"
@@ -124,3 +130,12 @@ name = "platform_kit imports no first-party library but the floor"
 type = "forbidden"
 source_modules = ["platform_kit"]
 forbidden_modules = ["llm_ports", "content_data", "market_ports"]
+
+# What a pack depends on: it sits on the floor and imports nothing that RUNS a pack (platform-kit's
+# loader plugs it in, C2). A pack importing platform_kit would make the implementation a contract.
+[[tool.importlinter.contracts]]
+id = "pack-contracts"
+name = "pack_contracts imports no first-party library but the floor"
+type = "forbidden"
+source_modules = ["pack_contracts"]
+forbidden_modules = ["platform_kit", "llm_ports", "content_data", "market_ports"]

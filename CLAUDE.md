@@ -19,10 +19,15 @@ Operating rules for this workspace. The tour is `README.md`; history is each pac
   `notify.ledger` and `watch.state`, which are `[sql]`) import the standard library only; every
   other module imports only its extra's declared dependencies, and no core module imports an
   extra's module
-  (`packages/platform-kit/tests/test_purity.py`, which also reads the installed metadata and keeps
-  the consumer deny-list as sha256 digests). A new extra module joins `MODULE_EXTRA` there.
+  (`packages/platform-kit/tests/test_purity.py`, which also reads the installed metadata). A new
+  extra module joins `MODULE_EXTRA` there.
+- **pack-contracts is what a pack depends on**: the standard library, pydantic and pluggy
+  (`packages/pack-contracts/tests/test_pack_purity.py`), never platform-kit. A hookspec or
+  manifest change is entered in `surface-ledger.json` as a new contract version, and a minor only
+  adds (`pack_contracts.contract`).
 - **No consumer knowledge** in any package: no application names, hostnames, addresses, schema
   names, symbol lists or a consumer's environment-variable names. Docstrings state the contract.
+  `tests/test_no_consumer_knowledge.py` scans every package against one deny-list (sha256 digests).
 - **Unknown is `None`, never `0`.** Datetimes carry a timezone. Value types are frozen.
 - **Typed surface**: `mypy --strict` and `pyright --verifytypes` at 100% per package.
 - **Coverage floor** in the root `pyproject.toml` is raised, never lowered.

@@ -1,0 +1,32 @@
+{
+  "rule": "Append-only, one entry per contract version, oldest first. Inside a major an entry may only ADD hooks, defaulted hook parameters and optional manifest fields (pack_contracts.contract). Never edit an entry; enter a change as a new version.",
+  "entries": [
+    {
+      "contract": "1.0",
+      "hooks": {
+        "register_contributions": {
+          "required": [
+            "register"
+          ],
+          "defaulted": {},
+          "firstresult": false,
+          "historic": false
+        }
+      },
+      "manifest": {
+        "required": [
+          "contract",
+          "id",
+          "provides",
+          "tier",
+          "version"
+        ],
+        "optional": [
+          "description",
+          "needs",
+          "title"
+        ]
+      }
+    }
+  ]
+}

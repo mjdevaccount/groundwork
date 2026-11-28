@@ -11,6 +11,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `docs/plugins.md`, `docs/rate-budget.md`, `docs/config.md`: the design records of three planes
   (reasons, invariants, ruled-out options). The purity scan now reads `docs/` too.
 
+### Changed
+
+- The consumer-name scan moved out of `tests/test_purity.py` to the workspace's
+  `tests/test_no_consumer_knowledge.py`, which runs the same deny-list over every package
+  (test-only; nothing shipped changes).
+
 ## [0.1.1]
 
 ### Security

@@ -72,6 +72,8 @@ jobs:
         run: uv run --no-sync pyright --verifytypes primitives_kit --ignoreexternal
       - name: pyright --verifytypes platform_kit
         run: uv run --no-sync pyright --verifytypes platform_kit --ignoreexternal
+      - name: pyright --verifytypes pack_contracts
+        run: uv run --no-sync pyright --verifytypes pack_contracts --ignoreexternal
 
   pytest:
     name: pytest (${{ matrix.python }})
@@ -120,6 +122,7 @@ jobs:
       matrix:
         include:
           - package: primitives-kit
+          - package: pack-contracts
           # Every extra at its floor, with primitives-kit (its first-party dependency) at ITS floor.
           # The suite's test-only clients install AFTER, at normal resolution (a driver's oldest
           # release is not a bound this package declares). The Postgres tests skip in this leg (no
