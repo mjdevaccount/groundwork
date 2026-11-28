@@ -132,6 +132,11 @@
           "provides"
         ],
         "type": "object"
+      },
+      "manifest_rules": {
+        "_no_self_need": "model after",
+        "_provides_something": "field provides after",
+        "_unique_and_frozen": "field provides,needs after"
       }
     }
   ]

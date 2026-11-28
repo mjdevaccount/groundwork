@@ -7,7 +7,11 @@ The SURFACE is everything a pack is written against, as plain data:
   `repr` of its default), the return annotation, and the `firstresult` / `historic` options;
 - `protocols`: per protocol a pack implements, each member and its annotation;
 - `manifest`: the manifest's JSON Schema (`pack_contracts.schema`), with `description` and `title`
-  annotations stripped (prose is not contract; types, patterns, enums, bounds and defaults are).
+  annotations stripped (prose is not contract; types, patterns, enums, bounds and defaults are);
+- `manifest_rules`: the model's validators by name, with the fields each one checks. A schema
+  cannot express a cross-field rule, so its body is not compared; adding, removing or re-targeting
+  one changes the surface (and a changed BODY that refuses what used to pass is a new major by the
+  rule, which the reviewer holds, not this ledger).
 
 The LEDGER (`surface-ledger.json`, shipped in this package) is append-only: one entry per released
 contract version, oldest first. `verify_ledger` holds it to the rule:
@@ -46,10 +50,13 @@ from typing import TYPE_CHECKING, Any, cast
 from pack_contracts.contract import CONTRACT_VERSION, ContractVersion
 from pack_contracts.discovery import MANIFEST_GROUP
 from pack_contracts.hooks import PLUGIN_GROUP, PROJECT_NAME, Contribution, PackSpec
+from pack_contracts.manifest import PackManifest
 from pack_contracts.schema import manifest_json_schema
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
+
+    from pydantic import BaseModel
 
 __all__ = [
     "LEDGER_RESOURCE",
@@ -62,6 +69,7 @@ __all__ = [
     "manifest_surface",
     "names_surface",
     "protocol_surface",
+    "rules_surface",
     "verify_ledger",
 ]
 
@@ -164,6 +172,14 @@ def manifest_surface(schema: Mapping[str, Any] | None = None) -> dict[str, Any]:
     return stripped
 
 
+def rules_surface(model: type[BaseModel] = PackManifest) -> dict[str, str]:
+    """`model`'s validators: name -> `field <fields> <mode>` or `model <mode>`."""
+    decorators = model.__pydantic_decorators__
+    out = {n: f"field {','.join(d.info.fields)} {d.info.mode}" for n, d in decorators.field_validators.items()}
+    out |= {n: f"model {d.info.mode}" for n, d in decorators.model_validators.items()}
+    return dict(sorted(out.items()))
+
+
 def live_surface() -> dict[str, Any]:
     """The surface this distribution defines now, as a ledger entry."""
     return {
@@ -172,6 +188,7 @@ def live_surface() -> dict[str, Any]:
         "hooks": hook_surface(PackSpec),
         "protocols": protocol_surface(Contribution),
         "manifest": manifest_surface(),
+        "manifest_rules": rules_surface(),
     }
 
 
@@ -220,6 +237,7 @@ def evolution_errors(old: Mapping[str, Any], new: Mapping[str, Any]) -> list[str
             errors.append(f"protocol {proto!r} was removed")
         else:  # a member added to a protocol is one every existing implementation lacks
             _kept(errors, f"protocol {proto!r}", was, new["protocols"][proto], extend=False)
+    _kept(errors, "manifest rules", old["manifest_rules"], new["manifest_rules"], extend=False)
     was_m, now_m = old["manifest"], new["manifest"]
     if sorted(now_m.get("required", [])) != sorted(was_m.get("required", [])):
         errors.append(f"manifest: required fields changed {was_m.get('required')} -> {now_m.get('required')}")

@@ -101,7 +101,9 @@ property (its type, pattern, bounds, enum or default) or to the required set.
 
 `src/pack_contracts/surface-ledger.json` is append-only, one entry per contract version. An entry
 is the whole surface: the three names, each hook's parameters with their annotations and defaults,
-each protocol's members, and the manifest's JSON Schema without its prose (`description`, `title`).
+each protocol's members, the manifest's JSON Schema without its prose (`description`, `title`),
+and the model's validators by name and target fields (a validator's body is not compared: a body
+change that refuses what used to pass is a new major by the rule, held in review).
 `tests/test_surface.py` holds it two ways:
 
 - `verify_ledger()`: consecutive entries inside a major must be compatible, and the last entry must
@@ -111,7 +113,15 @@ each protocol's members, and the manifest's JSON Schema without its prose (`desc
 - `append_only_errors()` over git: the ledger at every `pack-contracts-v*` tag and on `base` must
   be a prefix of the committed one, so an entry edited in place (live surface and entry changed
   together) fails too. CI's pytest job checks out full history and sets
-  `PACK_CONTRACTS_LEDGER_HISTORY_REQUIRED=1`, which turns "no history here, skip" into a failure.
+  `PACK_CONTRACTS_LEDGER_HISTORY_REQUIRED=1`, which turns "no history here, skip" (or a missing
+  `origin/base`) into a failure. Only refs that are ancestors of HEAD are compared, so a release
+  tagged on an older commit is not mistaken for a removal.
+
+Because the manifest entry is pydantic's JSON Schema projection, a pydantic upgrade that writes an
+existing property differently fails `verify_ledger` although no contract changed. The response is
+to read the diff: if the meaning is the same (a keyword spelled differently), the projection is
+pinned back (a `json_schema_extra` on the field) rather than a contract version entered for a
+change nothing made.
 
 `src/pack_contracts/pack-manifest.schema.json` is generated from `PackManifest`
 (`python -m pack_contracts schema`) and `tests/test_schema.py` fails when they differ. The schema

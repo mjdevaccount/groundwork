@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from pack_contracts.contract import CONTRACT_VERSION, ContractVersion
 from pack_contracts.hooks import Contribution, PackSpec, hookspec
@@ -26,6 +26,7 @@ from pack_contracts.surface import (
     manifest_surface,
     names_surface,
     protocol_surface,
+    rules_surface,
     verify_ledger,
 )
 
@@ -57,6 +58,8 @@ def test_the_live_surface_is_every_name_hook_protocol_and_the_manifest_schema() 
         }
     }
     assert live["protocols"] == {"Contribution": {"kind": "property -> str", "name": "property -> str"}}
+    assert live["manifest_rules"] == {"_no_self_need": "model after", "_provides_something": "field provides after",
+                                      "_unique_and_frozen": "field provides,needs after"}  # fmt: skip
     manifest = live["manifest"]
     assert set(manifest["required"]) == {"contract", "id", "provides", "tier", "version"}
     assert manifest["$defs"]["Tier"]["enum"] == ["declared", "loads", "conformant"]
@@ -122,6 +125,15 @@ def test_protocol_surface_reads_attributes_properties_and_methods() -> None:
     assert protocol_surface(P) == {"P": {"kind": "property -> str", "render": "def (self, width: int) -> str",
                                          "size": "int"}}  # fmt: skip
     assert protocol_surface(Contribution) == live_surface()["protocols"]
+
+
+def test_rules_surface_sees_a_new_validator() -> None:
+    class Stricter(PackManifest):
+        @model_validator(mode="after")
+        def _no_title(self) -> Stricter:
+            return self
+
+    assert rules_surface(Stricter) == rules_surface() | {"_no_title": "model after"}
 
 
 def test_names_surface_is_the_three_names() -> None:
@@ -208,6 +220,10 @@ def test_additions_are_a_compatible_minor() -> None:
         (lambda n: n["manifest"]["properties"]["version"].update(type="integer"), "'version' changed"),
         (lambda n: n["manifest"]["$defs"]["Tier"]["enum"].remove("declared"), "manifest definition: 'Tier'"),
         (lambda n: n["manifest"].update(additionalProperties=True), "manifest: 'additionalProperties' changed"),
+        (lambda n: n["manifest_rules"].update(_new="model after"), "manifest rules: ['_new'] added"),
+        (lambda n: n["manifest_rules"].pop("_no_self_need"), "manifest rules: '_no_self_need' was removed"),
+        (lambda n: n["manifest_rules"].update(_provides_something="field needs after"),
+         "manifest rules: '_provides_something' changed"),
     ],
 )  # fmt: skip
 def test_every_breaking_change_is_caught(change: Callable[[dict[str, Any]], Any], needle: str) -> None:
@@ -288,15 +304,20 @@ def test_append_only_holds_a_prefix_and_refuses_an_edit_or_a_removal() -> None:
 def _git(*args: str) -> subprocess.CompletedProcess[str]:
     git = shutil.which("git")
     assert git is not None
-    return subprocess.run([git, *args], capture_output=True, text=True, check=False, cwd=Path(__file__).parent)
+    return subprocess.run([git, *args], capture_output=True, encoding="utf-8", check=False, cwd=Path(__file__).parent)
 
 
-def _released_refs() -> list[str]:
-    """`origin/base` (when fetched) and every `pack-contracts-v*` tag."""
+def _released_refs(*, required: bool) -> list[str]:
+    """`origin/base` and every `pack-contracts-v*` tag that is an ANCESTOR of HEAD. A ref ahead of
+    HEAD (a release tagged on an older commit, after base moved on) has entries HEAD never had,
+    which is not an edit. `required` fails when `origin/base` is not fetched: without it the
+    comparison would be empty and pass."""
     refs = [t for t in _git("tag", "--list", "pack-contracts-v*").stdout.split() if t]
     if _git("rev-parse", "--verify", "--quiet", "refs/remotes/origin/base").returncode == 0:
         refs.append("origin/base")
-    return refs
+    elif required:
+        pytest.fail(f"{HISTORY_REQUIRED}=1 but refs/remotes/origin/base is not fetched")
+    return [r for r in refs if _git("merge-base", "--is-ancestor", r, "HEAD").returncode == 0]
 
 
 def test_every_released_ledger_is_a_prefix_of_the_committed_one() -> None:
@@ -314,7 +335,7 @@ def test_every_released_ledger_is_a_prefix_of_the_committed_one() -> None:
         pytest.skip("a shallow clone: the released ledgers are not reachable")
     current = load_ledger()
     errors: list[str] = []
-    for ref in _released_refs():
+    for ref in _released_refs(required=required):
         shown = _git("show", f"{ref}:{LEDGER_PATH}")
         if shown.returncode != 0:  # this ref predates the ledger
             continue
